@@ -93,9 +93,9 @@ class DecentralizedSGD:
 
                 data, target = data.to(self.device), target.to(self.device)
                 output = self.models[i](data)
-                loss = criterion(output, target)
+                loss = criterion(output, target)  #Computes average loss over the batch for this worker
                 self.models[i].zero_grad()
-                loss.backward()
+                loss.backward()  #only compute gradients for this worker's model
 
                 with torch.no_grad():
                     for p in self.models[i].parameters():
