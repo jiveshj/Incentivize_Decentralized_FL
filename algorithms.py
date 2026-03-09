@@ -27,7 +27,7 @@ from utils import params_to_vector, vector_to_params, evaluate_model, consensus_
 
 class DecentralizedSGD:
     """
-    Algorithm 1 - Decentralized SGD with Local Updates.
+    Algorithm 1 - Decentralized FL with Local Updates.
 
     Standard baseline: all workers do τ local SGD steps then
     gossip-average with neighbors.
