@@ -33,13 +33,16 @@ from utils import (set_seed, evaluate_model, evaluate_per_client,
                    generate_experiment_name)
 from topologies import get_topology, print_topology_info, metropolis_hastings_weights
 from data_utils import (get_dataset, get_alpha_for_dataset, partition_dirichlet,
-                        create_client_test_loaders, analyze_data_heterogeneity)
+                        create_client_test_loaders, analyze_data_heterogeneity,
+                        split_client_train_val)
 from models import get_model_fn
 from algorithms import DecentralizedSGD, NodeDropIDSGD
 from weight_strategies import get_weight_strategy, list_strategies
 from dropout import (estimate_rho_local_training, determine_dropouts,
                      apply_dropouts, compute_client_losses, train_solo_models)
 
+
+#We have a learning rate schedule, but have learning rate fixed for local steps in IDSGD (Maybe we should change that?)
 
 def run_baseline(args, model_fn, train_loaders, test_loaders, test_dataset,
                  W, n_workers, G, client_distributions, device):
@@ -106,7 +109,7 @@ def run_baseline(args, model_fn, train_loaders, test_loaders, test_dataset,
     return history, dsgd
 
 
-def run_with_dropout(args, model_fn, train_loaders, test_loaders, test_dataset,
+def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, test_dataset,
                      W, n_workers, G, client_distributions, device,
                      algorithm_class, importance_weights=None):
     """
@@ -154,6 +157,7 @@ def run_with_dropout(args, model_fn, train_loaders, test_loaders, test_dataset,
     current_W = W.clone().to(device)
     current_G = G.copy()
     active = [True] * n_workers
+    rho = None #estimated once at Warmup
 
     for t in range(args.T):
         # Learning rate schedule
@@ -179,17 +183,22 @@ def run_with_dropout(args, model_fn, train_loaders, test_loaders, test_dataset,
         history["train_loss"].append(train_loss)
 
         # --- Dropout check after warmup ---
-        if t == warmup_rounds and t > 0:
+        if t == warmup_rounds and t > 0 and rho is None:
             # Estimate ρ_i
             rho = estimate_rho_local_training(
-                algo.models, train_loaders, criterion, n_workers,
+                algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
                 solo_rounds=args.rho_solo_rounds, tau=args.tau,
                 solo_lr=lr, device=device
             )
+            if args.verbose:
+                print(f"\n>>> Round {t+1}: Estimated ρ_i = "
+                      f"{[f'{r:.4f}' for r in rho]}")
+        # Check for dropouts periodically after warmup
+        if rho is not None and t>= warmup_rounds and (t-warmup_rounds) % args.dropout_check_interval == 0:
 
-            # Compute current losses
+            # Compute current losses on validation data (same as rho_i)
             client_losses = compute_client_losses(
-                algo.models, train_loaders, criterion, active, device
+                algo.models, val_loaders, criterion, active, device
             )
 
             # Determine who wants to drop
@@ -204,7 +213,7 @@ def run_with_dropout(args, model_fn, train_loaders, test_loaders, test_dataset,
 
                 # Apply dropouts
                 current_G, current_W, active, dropout_info = apply_dropouts(
-                    G, current_W, dropouts, active, device
+                    current_G, current_W, dropouts, active, device
                 )
 
                 # Update algorithm state
@@ -212,12 +221,16 @@ def run_with_dropout(args, model_fn, train_loaders, test_loaders, test_dataset,
 
                 if args.verbose:
                     print(f"    Voluntary dropouts: {dropout_info['voluntary_dropouts']}")
-                    print(f"    Forcibly disconnected: {dropout_info['forcibly_disconnected']}")
+                    # print(f"    Forcibly disconnected: {dropout_info['forcibly_disconnected']}")
+                    print(f"    Components after: {dropout_info['n_components_after']} "
+                          f"(sizes: {dropout_info['component_sizes']})")
                     print(f"    Largest CC size: {dropout_info['largest_cc_size']}/{n_workers}")
-                    print(f"    Retention rate: {dropout_info['retention_rate']*100:.1f}%\n")
+                    print(f"    Still active: {dropout_info['total_active']}/{n_workers}\n")
+
+                    # print(f"    Retention rate: {dropout_info['retention_rate']*100:.1f}%\n")
 
                 all_dropped.extend(dropouts)
-                all_dropped.extend(dropout_info["forcibly_disconnected"])
+                # all_dropped.extend(dropout_info["forcibly_disconnected"])
                 history["dropout_events"].append({
                     "round": t + 1,
                     **dropout_info,
@@ -252,7 +265,7 @@ def run_with_dropout(args, model_fn, train_loaders, test_loaders, test_dataset,
                       f"avg_active_acc={np.mean(active_accs)*100:.2f}% | "
                       f"avg_all_acc={np.mean(client_accs)*100:.2f}%")
 
-    # --- Post-training: solo train dropped clients ---
+    # --- Post-training: solo train dropped clients ---   (Not sure if I need to do this but it could be interesting to see how much they can improve with solo training)
     if len(all_dropped) > 0 and args.solo_train_rounds > 0:
         if args.verbose:
             print(f"\n>>> Solo training for dropped clients: {list(set(all_dropped))}")
@@ -335,8 +348,12 @@ def main():
     # Dropout simulation
     parser.add_argument("--dropout_warmup_frac", type=float, default=0.1,
                         help="Fraction of T before dropout is allowed")
+    parser.add_argument("--dropout_check_interval", type=int, default=10,
+                        help="Rounds between dropout checks after warmup")
     parser.add_argument("--rho_solo_rounds", type=int, default=5,
                         help="Solo training rounds to estimate rho_i")
+    parser.add_argument("--val_fraction", type= float, default = 0.15,
+                        help="Fraction of each client's data to use as validation for dropout decisions")
     parser.add_argument("--solo_train_rounds", type=int, default=1,
                         help="Solo training flag for dropped clients (0=disable)")
 
@@ -380,12 +397,25 @@ def main():
     hetero_info = analyze_data_heterogeneity(client_distributions)
     print(f"Data heterogeneity: avg_KL={hetero_info['avg_kl']:.3f}, "
           f"max_KL={hetero_info['max_kl']:.3f}")
+    
+    # Split each client's data into train / held-out validation
+    train_indices, val_indices = split_client_train_val(
+        client_indices, val_fraction=args.val_fraction, seed=args.seed
+    )
+    print(f"Per-client split: ~{len(train_indices[0])} train, "
+          f"~{len(val_indices[0])} val (val_fraction={args.val_fraction})")
+
 
     # Build loaders
-    train_subsets = [Subset(train_dataset, idx) for idx in client_indices]
+    train_subsets = [Subset(train_dataset, idx) for idx in train_indices]
     train_loaders = [
         DataLoader(sub, batch_size=args.batch_size, shuffle=True, drop_last=False)
         for sub in train_subsets
+    ]
+    val_subsets = [Subset(train_dataset, idx) for idx in val_indices]
+    val_loaders = [
+        DataLoader(sub, batch_size=args.batch_size, shuffle=False, drop_last=False)
+        for sub in val_subsets
     ]
     test_loaders = create_client_test_loaders(
         test_dataset, client_distributions, n_workers,
@@ -406,7 +436,7 @@ def main():
 
     elif args.algorithm == "baseline_dropout":
         history, algo = run_with_dropout(
-            args, model_fn, train_loaders, test_loaders, test_dataset,
+            args, model_fn, train_loaders,val_loaders, test_loaders, test_dataset,
             W, n_workers, G, client_distributions, device,
             algorithm_class=DecentralizedSGD
         )
@@ -427,7 +457,7 @@ def main():
                 print(f"  Weights: {np.round(weights, 2)}")
 
                 history, algo = run_with_dropout(
-                    args, model_fn, train_loaders, test_loaders, test_dataset,
+                    args, model_fn, train_loaders,val_loaders, test_loaders, test_dataset,
                     W, n_workers, G, client_distributions, device,
                     algorithm_class=NodeDropIDSGD,
                     importance_weights=weights,
@@ -463,7 +493,7 @@ def main():
             print(f"Weights: {np.round(weights, 3)}")
 
             history, algo = run_with_dropout(
-                args, model_fn, train_loaders, test_loaders, test_dataset,
+                args, model_fn, train_loaders, val_loaders, test_loaders, test_dataset,
                 W, n_workers, G, client_distributions, device,
                 algorithm_class=NodeDropIDSGD,
                 importance_weights=weights,
