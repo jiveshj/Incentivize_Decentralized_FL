@@ -326,3 +326,42 @@ def analyze_data_heterogeneity(client_distributions: List[np.ndarray]) -> dict:
         "max_kl": float(np.max(kl_divs)),
         "avg_entropy": float(np.mean(entropies)),
     }
+
+
+# ---------------------------------------------------------------------------
+# Train / validation split per client
+# ---------------------------------------------------------------------------
+
+def split_client_train_val(client_indices: List[List[int]],
+                           val_fraction: float = 0.15,
+                           seed: int = 42) -> Tuple[List[List[int]], List[List[int]]]:
+    """
+    Split each client's data indices into train and held-out validation sets.
+
+    The validation set is used for:
+    - Estimating ρ_i (solo training loss threshold)
+    - Evaluating F_i(x) for dropout decisions
+
+    Both must be on the SAME held-out data for a fair comparison
+    (is collaboration better than solo for this client?).
+
+    Args:
+        client_indices: list of index lists per client
+        val_fraction: fraction of each client's data to hold out
+        seed: random seed
+
+    Returns:
+        (train_indices, val_indices) — both are lists of lists
+    """
+    rng = np.random.RandomState(seed + 2000)
+    train_indices = []
+    val_indices = []
+
+    for indices in client_indices:
+        indices = np.array(indices)
+        rng.shuffle(indices)
+        n_val = max(1, int(len(indices) * val_fraction))
+        val_indices.append(indices[:n_val].tolist())
+        train_indices.append(indices[n_val:].tolist())
+
+    return train_indices, val_indices
