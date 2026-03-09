@@ -222,54 +222,54 @@ class NodeDropIDSGD:
             self.rho[i] = val
         self.rho_initialized = True
 
-    def estimate_rho(self, loaders: List[DataLoader], criterion: nn.Module,
-                     solo_rounds: int = 5, solo_lr: float = 0.01):
-        """
-        Estimate dropout thresholds ρ_i for each client.
-        ρ_i = loss achieved by client i after a few rounds of local-only training.
-        This serves as the client's reference for "what they could achieve alone".
-        """
-        for i in range(self.n_workers):
-            # Create a temporary copy for solo training
-            solo_model = copy.deepcopy(self.models[i])
-            solo_model.train()
-            loader_iter = iter(loaders[i])
+    # def estimate_rho(self, loaders: List[DataLoader], criterion: nn.Module,
+    #                  solo_rounds: int = 5, solo_lr: float = 0.01):
+    #     """
+    #     Estimate dropout thresholds ρ_i for each client.
+    #     ρ_i = loss achieved by client i after a few rounds of local-only training.
+    #     This serves as the client's reference for "what they could achieve alone".
+    #     """
+    #     for i in range(self.n_workers):
+    #         # Create a temporary copy for solo training
+    #         solo_model = copy.deepcopy(self.models[i])
+    #         solo_model.train()
+    #         loader_iter = iter(loaders[i])
 
-            for _ in range(solo_rounds * self.tau):
-                try:
-                    data, target = next(loader_iter)
-                except StopIteration:
-                    loader_iter = iter(loaders[i])
-                    data, target = next(loader_iter)
+    #         for _ in range(solo_rounds * self.tau):
+    #             try:
+    #                 data, target = next(loader_iter)
+    #             except StopIteration:
+    #                 loader_iter = iter(loaders[i])
+    #                 data, target = next(loader_iter)
 
-                data, target = data.to(self.device), target.to(self.device)
-                output = solo_model(data)
-                loss = criterion(output, target)
-                solo_model.zero_grad()
-                loss.backward()
-                with torch.no_grad():
-                    for p in solo_model.parameters():
-                        p.data -= solo_lr * p.grad
+    #             data, target = data.to(self.device), target.to(self.device)
+    #             output = solo_model(data)
+    #             loss = criterion(output, target)
+    #             solo_model.zero_grad()
+    #             loss.backward()
+    #             with torch.no_grad():
+    #                 for p in solo_model.parameters():
+    #                     p.data -= solo_lr * p.grad
 
-            # Evaluate solo model loss as ρ_i
-            solo_model.eval()
-            total_loss, total_n = 0.0, 0
-            loader_iter = iter(loaders[i])
-            with torch.no_grad():
-                for _ in range(min(5, len(loaders[i]))):
-                    try:
-                        data, target = next(loader_iter)
-                    except StopIteration:
-                        break
-                    data, target = data.to(self.device), target.to(self.device)
-                    output = solo_model(data)
-                    total_loss += criterion(output, target).item() * data.size(0)
-                    total_n += data.size(0)
+    #         # Evaluate solo model loss as ρ_i
+    #         solo_model.eval()
+    #         total_loss, total_n = 0.0, 0
+    #         loader_iter = iter(loaders[i])
+    #         with torch.no_grad():
+    #             for _ in range(min(5, len(loaders[i]))):
+    #                 try:
+    #                     data, target = next(loader_iter)
+    #                 except StopIteration:
+    #                     break
+    #                 data, target = data.to(self.device), target.to(self.device)
+    #                 output = solo_model(data)
+    #                 total_loss += criterion(output, target).item() * data.size(0)
+    #                 total_n += data.size(0)
 
-            self.rho[i] = total_loss / max(total_n, 1)
-            del solo_model
+    #         self.rho[i] = total_loss / max(total_n, 1)
+    #         del solo_model
 
-        self.rho_initialized = True
+    #     self.rho_initialized = True
 
     def _compute_dropout_prob(self, client_idx: int, loss_val: float) -> float:
         """σ_i(x) = sigmoid(F_i(x) - ρ_i)"""
