@@ -71,9 +71,9 @@ def apply_dropouts(G: nx.Graph,
     When a node drops out:
     1. All its edges are severed
     2. The remaining graph may fragment into components
-    3. A new Metropolis-Hastings mixing matrix is computed for the
-       largest connected component
-    4. Nodes not in the largest component become isolated
+    3. Each connected component gets its own Metropolis-Hastings mixing matrix 
+       and continues training collaboratively within that component
+    4. Nodes not in any connected component become isolated and train solo (self-loop with weight 1)
 
     Returns:
         (new_graph, new_W, new_active, dropout_info)
@@ -103,75 +103,129 @@ def apply_dropouts(G: nx.Graph,
     else:
         largest_cc = set()
 
-    # Nodes not in largest CC become forcibly disconnected
-    forcibly_disconnected = []
-    for comp in components:
-        if comp != largest_cc:
-            for n in comp:
-                idx = node_to_idx[n]
-                new_active[idx] = False
-                forcibly_disconnected.append(idx)
+    # # Nodes not in largest CC become forcibly disconnected
+    # forcibly_disconnected = []
+    # for comp in components:
+    #     if comp != largest_cc:
+    #         for n in comp:
+    #             idx = node_to_idx[n]
+    #             new_active[idx] = False
+    #             forcibly_disconnected.append(idx)
+
 
     # Build new mixing matrix for the active topology
     new_W = torch.zeros(N, N, device=device)
-    if len(largest_cc) > 1:
-        sub_G = H.subgraph(largest_cc).copy()
-        sub_W = metropolis_hastings_weights(sub_G)
-        sub_nodes = sorted(sub_G.nodes())
-        sub_node_to_idx = {n: i for i, n in enumerate(sub_nodes)}
+    # if len(largest_cc) > 1:
+    #     sub_G = H.subgraph(largest_cc).copy()
+    #     sub_W = metropolis_hastings_weights(sub_G)
+    #     sub_nodes = sorted(sub_G.nodes())
+    #     sub_node_to_idx = {n: i for i, n in enumerate(sub_nodes)}
 
-        for n_i in sub_nodes:
-            for n_j in sub_nodes:
-                idx_i = node_to_idx[n_i]
-                idx_j = node_to_idx[n_j]
-                sub_i = sub_node_to_idx[n_i]
-                sub_j = sub_node_to_idx[n_j]
-                new_W[idx_i, idx_j] = sub_W[sub_i, sub_j]
-    elif len(largest_cc) == 1:
-        # Single node: self-loop with weight 1
-        n = list(largest_cc)[0]
-        idx = node_to_idx[n]
+    #     for n_i in sub_nodes:
+    #         for n_j in sub_nodes:
+    #             idx_i = node_to_idx[n_i]
+    #             idx_j = node_to_idx[n_j]
+    #             sub_i = sub_node_to_idx[n_i]
+    #             sub_j = sub_node_to_idx[n_j]
+    #             new_W[idx_i, idx_j] = sub_W[sub_i, sub_j]
+    # elif len(largest_cc) == 1:
+    #     # Single node: self-loop with weight 1
+    #     n = list(largest_cc)[0]
+    #     idx = node_to_idx[n]
+    #     new_W[idx, idx] = 1.0
+
+    # # Solo nodes get self-loop weight 1
+    # for i in range(N):
+    #     if not new_active[i]:
+    #         new_W[i, :] = 0
+    #         new_W[:, i] = 0
+    #         new_W[i, i] = 1.0
+
+    # new_G = H.subgraph(largest_cc).copy() if len(largest_cc) > 0 else nx.Graph()
+    for comp in components:
+        comp_nodes = sorted(comp)
+        if len(comp_nodes) > 1:
+            # Multi-node component: build MH mixing matrix for this subgraph
+            sub_G = H.subgraph(comp_nodes).copy()
+            sub_W = metropolis_hastings_weights(sub_G)
+            sub_node_to_idx = {n: i for i, n in enumerate(comp_nodes)}
+
+            for n_i in comp_nodes:
+                for n_j in comp_nodes:
+                    idx_i = node_to_idx[n_i]
+                    idx_j = node_to_idx[n_j]
+                    sub_i = sub_node_to_idx[n_i]
+                    sub_j = sub_node_to_idx[n_j]
+                    new_W[idx_i, idx_j] = sub_W[sub_i, sub_j]
+        else:
+            # Single isolated node: self-loop
+            n = comp_nodes[0]
+            idx = node_to_idx[n]
+            new_W[idx, idx] = 1.0
+
+    # Dropped-out nodes get self-loop weight 1 (solo training)
+    for idx in dropout_nodes:
+        new_W[idx, :] = 0
+        new_W[:, idx] = 0
         new_W[idx, idx] = 1.0
 
-    # Solo nodes get self-loop weight 1
-    for i in range(N):
-        if not new_active[i]:
-            new_W[i, :] = 0
-            new_W[:, i] = 0
-            new_W[i, i] = 1.0
-
-    new_G = H.subgraph(largest_cc).copy() if len(largest_cc) > 0 else nx.Graph()
+    component_sizes = sorted([len(c) for c in components], reverse=True)
 
     dropout_info = {
         "voluntary_dropouts": dropout_nodes,
-        "forcibly_disconnected": forcibly_disconnected,
         "n_components_after": len(components),
+        "component_sizes": component_sizes,
         "largest_cc_size": len(largest_cc),
         "total_active": sum(new_active),
         "retention_rate": sum(new_active) / N,
+        # Retention in largest CC (paper's metric)
+        "largest_cc_retention_rate": len(largest_cc) / N,
     }
 
-    return new_G, new_W, new_active, dropout_info
+    return H, new_W, new_active, dropout_info
+
+
+    # dropout_info = {
+    #     "voluntary_dropouts": dropout_nodes,
+    #     "forcibly_disconnected": forcibly_disconnected,
+    #     "n_components_after": len(components),
+    #     "largest_cc_size": len(largest_cc),
+    #     "total_active": sum(new_active),
+    #     "retention_rate": sum(new_active) / N,
+    # }
+
+    # return new_G, new_W, new_active, dropout_info
 
 
 def estimate_rho_local_training(models: List[nn.Module],
-                                 loaders: List[DataLoader],
-                                 criterion: nn.Module,
-                                 n_workers: int,
-                                 solo_rounds: int = 5,
-                                 tau: int = 4,
-                                 solo_lr: float = 0.01,
-                                 device: str = "cpu") -> List[float]:
+                                model_fn, 
+                                train_loaders: List[DataLoader],
+                                val_loaders: List[DataLoader],
+                                criterion: nn.Module,
+                                n_workers: int,
+                                solo_rounds: int = 5,
+                                tau: int = 4,
+                                solo_lr: float = 0.01,
+                                device: str = "cpu") -> List[float]:
     """
     Estimate dropout thresholds ρ_i via local-only training.
 
-    Each client trains a copy of their model on local data for
-    a few rounds, then evaluates the loss. This loss serves as
-    their baseline "what I could achieve alone".
+    Each client:
+    1. Trains a FRESH model from scratch on their local TRAINING data
+       (simulating what they'd achieve if they never joined collaboration)
+    2. Evaluates the loss on held-out VALIDATION data
+    This validation loss is ρ_i — the client's solo baseline.
+
+    We use fresh initialization (not the collaborative model) because
+    ρ_i should represent the counterfactual: "what if I trained alone
+    from the start?" Starting from collaborative params would give an
+    unfair head start, making ρ_i artificially low.
 
     Args:
-        models: current client models
-        loaders: training data loaders per client
+        models: current client models (unused, kept for API consistency)
+        model_fn: callable that returns a fresh nn.Module
+        train_loaders: training data loaders per client (for solo training)
+        val_loaders: held-out validation loaders per client (for evaluation)
         criterion: loss function
         n_workers: number of clients
         solo_rounds: number of rounds of solo training
@@ -179,22 +233,23 @@ def estimate_rho_local_training(models: List[nn.Module],
         solo_lr: learning rate for solo training
         device: cpu/cuda
 
+
     Returns:
         list of ρ_i values
     """
     rho = []
     for i in range(n_workers):
         # Clone current model
-        solo_model = copy.deepcopy(models[i])
+        solo_model = model_fn().to(device)
         solo_model.train()
-        loader_iter = iter(loaders[i])
+        loader_iter = iter(train_loaders[i])
 
         # Solo training
         for _ in range(solo_rounds * tau):
             try:
                 data, target = next(loader_iter)
             except StopIteration:
-                loader_iter = iter(loaders[i])
+                loader_iter = iter(train_loaders[i])
                 data, target = next(loader_iter)
 
             data, target = data.to(device), target.to(device)
@@ -206,11 +261,11 @@ def estimate_rho_local_training(models: List[nn.Module],
                 for p in solo_model.parameters():
                     p.data -= solo_lr * p.grad
 
-        # Evaluate
+        # Evaluate on held-out validation data to get ρ_i
         solo_model.eval()
         total_loss, total_n = 0.0, 0
         with torch.no_grad():
-            for data, target in loaders[i]:
+            for data, target in val_loaders[i]:
                 data, target = data.to(device), target.to(device)
                 output = solo_model(data)
                 total_loss += criterion(output, target).item() * data.size(0)
