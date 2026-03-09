@@ -215,6 +215,12 @@ class NodeDropIDSGD:
         # Logging
         self.dropout_probs = []
         self.effective_lrs = []
+    
+    def set_rho(self,rho_values: List[float]):
+        """Manually set ρ_i values (for testing or if pre-computed)."""
+        for i, val in enumerate(rho_values):
+            self.rho[i] = val
+        self.rho_initialized = True
 
     def estimate_rho(self, loaders: List[DataLoader], criterion: nn.Module,
                      solo_rounds: int = 5, solo_lr: float = 0.01):
