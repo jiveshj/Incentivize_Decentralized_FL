@@ -1,0 +1,357 @@
+{
+  "args": {
+    "algorithm": "nodedrop",
+    "weight_strategy": "ALL",
+    "topology": "SFL12",
+    "n_workers": 12,
+    "dataset": "fashionmnist",
+    "alpha": null,
+    "data_dir": "./data",
+    "T": 30,
+    "tau": 4,
+    "batch_size": 64,
+    "lr": 0.05,
+    "lr_schedule": "cosine",
+    "gamma": 0.5,
+    "epsilon": 1.0,
+    "tau_eta": 10,
+    "dropout_warmup_frac": 0.1,
+    "dropout_check_interval": 10,
+    "rho_solo_rounds": 5,
+    "val_fraction": 0.15,
+    "solo_train_rounds": 1,
+    "eval_every": 5,
+    "test_samples_per_client": 500,
+    "seed": 42,
+    "device": "cpu",
+    "output_dir": "results",
+    "verbose": true,
+    "quiet": false
+  },
+  "strategies": {
+    "uniform": {
+      "avg_preferred_acc": 0.6565,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.656,
+        0.618,
+        0.624,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.634
+      ]
+    },
+    "degree": {
+      "avg_preferred_acc": 0.6565,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.658,
+        0.618,
+        0.624,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.634
+      ]
+    },
+    "degree_normalized": {
+      "avg_preferred_acc": 0.6566666666666666,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.658,
+        0.618,
+        0.624,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.634
+      ]
+    },
+    "betweenness": {
+      "avg_preferred_acc": 0.6565,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "eigenvector": {
+      "avg_preferred_acc": 0.6568333333333333,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.634
+      ]
+    },
+    "closeness": {
+      "avg_preferred_acc": 0.6563333333333333,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.658,
+        0.618,
+        0.624,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "pagerank": {
+      "avg_preferred_acc": 0.6566666666666666,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "vertex_connectivity": {
+      "avg_preferred_acc": 0.6566666666666666,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "articulation": {
+      "avg_preferred_acc": 0.6561666666666667,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.656,
+        0.618,
+        0.624,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "kl_divergence": {
+      "avg_preferred_acc": 0.6566666666666667,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.634
+      ]
+    },
+    "inverse_entropy": {
+      "avg_preferred_acc": 0.6565,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.656,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "dropout_risk": {
+      "avg_preferred_acc": 0.6565,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.658,
+        0.618,
+        0.624,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "degree_x_kl": {
+      "avg_preferred_acc": 0.6565,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "betweenness_x_kl": {
+      "avg_preferred_acc": 0.6563333333333333,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.72,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "betweenness_x_dropout_risk": {
+      "avg_preferred_acc": 0.6566666666666666,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "eigenvector_x_kl": {
+      "avg_preferred_acc": 0.6561666666666667,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.656,
+        0.618,
+        0.624,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    },
+    "pagerank_x_kl": {
+      "avg_preferred_acc": 0.6566666666666667,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.65,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.634
+      ]
+    },
+    "articulation_x_kl": {
+      "avg_preferred_acc": 0.6566666666666666,
+      "final_retention_rate": 0.0,
+      "preferred_accs": [
+        0.686,
+        0.652,
+        0.658,
+        0.618,
+        0.626,
+        0.636,
+        0.618,
+        0.722,
+        0.672,
+        0.652,
+        0.708,
+        0.632
+      ]
+    }
+  }
+}

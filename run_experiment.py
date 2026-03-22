@@ -38,8 +38,9 @@ from data_utils import (get_dataset, get_alpha_for_dataset, partition_dirichlet,
 from models import get_model_fn
 from algorithms import DecentralizedSGD, NodeDropIDSGD
 from weight_strategies import get_weight_strategy, list_strategies
-from dropout import (estimate_rho_local_training, determine_dropouts,
-                     apply_dropouts, compute_client_losses, train_solo_models)
+from dropout import (estimate_rho_local_training_loss, estimate_rho_local_training_accuracy, determine_dropouts,
+                     apply_dropouts, compute_client_losses, compute_client_accuracies,
+                     train_solo_models)
 
 
 #We have a learning rate schedule, but have learning rate fixed for local steps in IDSGD (Maybe we should change that?)
@@ -185,9 +186,9 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
         # --- Dropout check after warmup ---
         if t == warmup_rounds and t > 0 and rho is None:
             # Estimate ρ_i
-            rho = estimate_rho_local_training(
+            rho = estimate_rho_local_training_loss(
                 algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
-                solo_rounds=args.rho_solo_rounds, tau=args.tau,
+                solo_rounds=warmup_rounds, tau=args.tau,
                 solo_lr=lr, device=device
             )
             if args.verbose:
@@ -201,14 +202,25 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
                 algo.models, val_loaders, criterion, active, device
             )
 
+            client_accuracies = compute_client_accuracies(
+                algo.models, val_loaders, active, device
+            )
+
             # Determine who wants to drop
+            #dropouts = determine_dropouts(client_losses, rho, active)
             dropouts = determine_dropouts(client_losses, rho, active)
+
+            #Debug: print client losses, accuracies, and rho values
+            """for i in range(len(client_accuracies)):
+                print(f"\n>>> Round_n {t+1}")
+                print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
+                              f"ρ_n={rho[i]:.4f}") """
 
             if len(dropouts) > 0:
                 if args.verbose:
                     print(f"\n>>> Round {t+1}: Clients {dropouts} want to drop out")
                     for d in dropouts:
-                        print(f"    Client {d}: loss={client_losses[d]:.4f}, "
+                        print(f"    Client {d}: loss={client_losses[d]:.4f}, acc={client_accuracies[d]:.4f},"
                               f"ρ={rho[d]:.4f}")
 
                 # Apply dropouts
