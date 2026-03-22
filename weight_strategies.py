@@ -181,7 +181,84 @@ def articulation_point_weights(G: nx.Graph, n_workers: int,
     return weights
 
 
+# MORE TOPOLOGY-BASED STRATEGIES CAN BE ADDED HERE
 
+@register_strategy("kcore")
+def kcore_weights(G: nx.Graph, n_workers: int, **kwargs) -> np.ndarray:
+    """
+    K-core number: a_i = 1 + core_number(i).
+    Nodes in higher cores are structurally more central/robust.
+    """
+    nodes = sorted(G.nodes())
+    core_nums = nx.core_number(G)  # dict node -> k
+    weights = np.array([1.0 + core_nums[n] for n in nodes], dtype=float)
+    return weights
+
+
+@register_strategy("edge_connectivity")
+def edge_connectivity_weights(G: nx.Graph, n_workers: int, **kwargs) -> np.ndarray:
+    """
+    Edge connectivity contribution: a_i = 1 + (original_lambda - lambda_without_i).
+    Measures impact of node removal on edge connectivity.
+    More expensive than degree, but captures robustness.
+    """
+    nodes = sorted(G.nodes())
+    try:
+        original_lambda = nx.edge_connectivity(G)
+    except nx.NetworkXError:
+        original_lambda = 0
+
+    weights = np.ones(n_workers, dtype=float)
+    for idx, n in enumerate(nodes):
+        H = G.copy()
+        H.remove_node(n)
+        if H.number_of_nodes() > 1 and nx.is_connected(H):
+            try:
+                reduced_lambda = nx.edge_connectivity(H)
+            except nx.NetworkXError:
+                reduced_lambda = 0
+        else:
+            reduced_lambda = 0
+        weights[idx] = 1.0 + max(0, original_lambda - reduced_lambda)
+    return weights
+
+@register_strategy("component_impact")
+def component_impact_weights(G: nx.Graph, n_workers: int, **kwargs) -> np.ndarray:
+    """
+    Component impact: a_i = 1 + (num_components_without_i - 1)
+                       + alpha * (original_largest_cc - largest_cc_without_i).
+    Nodes whose removal splits the graph or shrinks the largest CC get higher (OR LOWER) weight.
+    """
+    alpha = kwargs.get("alpha", 0.5)
+    nodes = sorted(G.nodes())
+    original_components = list(nx.connected_components(G))
+    original_largest_cc = max(len(c) for c in original_components)
+
+    weights = np.ones(n_workers, dtype=float)
+    for idx, n in enumerate(nodes):
+        H = G.copy()
+        H.remove_node(n)
+        if H.number_of_nodes() == 0:
+            weights[idx] = 1.0
+            continue
+        comps = list(nx.connected_components(H))
+        n_comp = len(comps)
+        largest_cc = max(len(c) for c in comps)
+        delta_comp = max(0, n_comp - 1)
+        delta_lcc = max(0, original_largest_cc - largest_cc)
+        weights[idx] = 1.0 + delta_comp + alpha * delta_lcc
+    return weights
+
+@register_strategy("inverse_clustering")
+def inverse_clustering_weights(G: nx.Graph, n_workers: int, **kwargs) -> np.ndarray:
+    """
+    Inverse clustering coefficient: a_i = 1 + (1 - clustering_i).
+    Nodes with low clustering (bridges) get higher weight.
+    """
+    nodes = sorted(G.nodes())
+    clust = nx.clustering(G)
+    weights = np.array([1.0 + (1.0 - clust[n]) for n in nodes], dtype=float)
+    return weights
 
 
 # ===========================================================================
