@@ -351,7 +351,7 @@ def main():
 
     # Data
     parser.add_argument("--dataset", type=str, default="fashionmnist",
-                        choices=["fashionmnist", "emnist", "cifar10", "mnist"])
+                        choices=["fashionmnist", "emnist", "cifar10", "cifar100", "celeba","mnist"],)
     parser.add_argument("--alpha", type=float, default=None,
                         help="Dirichlet alpha (None = use paper default)")
     parser.add_argument("--data_dir", type=str, default="./data")
@@ -446,7 +446,7 @@ def main():
     ]
     test_loaders = create_client_test_loaders(
         test_dataset, client_distributions, n_workers,
-        test_samples_per_client=args.test_samples_per_client,
+        test_samples_per_client=args.test_samples_per_client, batch_size=args.batch_size,
         seed=args.seed
     )
 

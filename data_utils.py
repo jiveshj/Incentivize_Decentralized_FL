@@ -11,6 +11,109 @@ from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision import datasets, transforms
 from typing import List, Tuple, Optional, Dict
 from collections import Counter
+import gzip
+import struct
+import pandas as pd
+import os 
+from PIL import Image
+
+class CelebASmilingCSV(Dataset):
+    def __init__(self, csv_path, img_dir, split_csv_path=None, split=None, transform=None):
+        """
+        csv_path: attributes CSV (with columns: image_id, Smiling, ...)
+        img_dir: folder with face images
+        split_csv_path: optional CSV with partition info (train/val/test)
+        split: one of ["train", "val", "test"] if using split_csv_path
+        """
+        self.transform = transform
+
+        df = pd.read_csv(csv_path)
+
+        if split_csv_path is not None and split is not None:
+            split_df = pd.read_csv(split_csv_path)
+            # assume split_df has columns: image_id, partition (0=train,1=val,2=test)
+            merged = df.merge(split_df, on="image_id")
+            if split == "train":
+                merged = merged[merged["partition"] == 0]
+            elif split == "val":
+                merged = merged[merged["partition"] == 1]
+            elif split == "test":
+                merged = merged[merged["partition"] == 2]
+            df = merged
+
+        self.df = df.reset_index(drop=True)
+        self.img_dir = img_dir
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        img_path = os.path.join(self.img_dir, row["image_id"])  # adjust column name if needed
+        img = Image.open(img_path).convert("RGB")
+
+        if self.transform:
+            img = self.transform(img)
+
+        # Kaggle often encodes attributes as -1/1; map to 0/1
+        smile = row["Smiling"]   # adjust if header differs
+        y = 1 if smile == 1 else 0
+
+        return img, y
+
+class EMNISTBalancedDataset(Dataset):
+    def __init__(self, root: str, train: bool = True, transform=None):
+        self.root = root
+        self.train = train
+        self.transform = transform
+
+        split = "train" if train else "test"
+        images_path = os.path.join(
+            root, "EMNIST", "raw",
+            f"emnist-balanced-{split}-images-idx3-ubyte.gz"
+        )
+        labels_path = os.path.join(
+            root, "EMNIST", "raw",
+            f"emnist-balanced-{split}-labels-idx1-ubyte.gz"
+        )
+
+        self.data = self._read_image_file(images_path)   
+        self.targets = self._read_label_file(labels_path)  
+
+    def _read_label_file(self, path):
+        with gzip.open(path, "rb") as f:
+            magic, num = struct.unpack(">II", f.read(8))
+            # magic for labels should be 2049
+            if magic != 2049:
+                raise RuntimeError(f"Invalid magic number in label file: {magic}")
+            buf = f.read()
+            labels = torch.frombuffer(buf, dtype=torch.uint8).long()
+        return labels
+
+    def _read_image_file(self, path):
+        with gzip.open(path, "rb") as f:
+            magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
+            # magic for images should be 2051
+            if magic != 2051:
+                raise RuntimeError(f"Invalid magic number in image file: {magic}")
+            buf = f.read()
+            data = torch.frombuffer(buf, dtype=torch.uint8)
+            data = data.view(num, rows, cols)
+        return data
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, idx):
+        img, target = self.data[idx], int(self.targets[idx])
+        # rotate to match torchvision EMNIST orientation
+        img = torch.rot90(img, k=3, dims=(0, 1))  # or (0,1) depending on your read
+        img = torch.flip(img, dims=(1,))          # horizontal flip if needed
+
+        img = img.unsqueeze(0).float() / 255.0
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, target
 
 
 # ---------------------------------------------------------------------------
@@ -228,13 +331,11 @@ def get_dataset(name: str, data_dir: str = "./data") -> Tuple[Dataset, Dataset, 
 
     elif name == "emnist":
         transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1751,), (0.3332,)),
-        ])
-        train = datasets.EMNIST(data_dir, split="balanced", train=True,
-                                 download=True, transform=transform)
-        test = datasets.EMNIST(data_dir, split="balanced", train=False,
-                                download=True, transform=transform)
+        transforms.Normalize((0.1751,), (0.3332,)),
+    ])
+
+        train = EMNISTBalancedDataset(data_dir, train=True, transform=transform)
+        test = EMNISTBalancedDataset(data_dir, train=False, transform=transform)
         return train, test, 47
 
     elif name == "cifar10":
@@ -256,6 +357,63 @@ def get_dataset(name: str, data_dir: str = "./data") -> Tuple[Dataset, Dataset, 
                                  transform=transform_test)
         return train, test, 10
 
+    elif name == "cifar100":
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408),
+                                 (0.2675, 0.2565, 0.2761)),
+        ])
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408),
+                                 (0.2675, 0.2565, 0.2761)),
+        ])
+        train = datasets.CIFAR100(data_dir, train=True, download=True,
+                                   transform=transform_train)
+        test = datasets.CIFAR100(data_dir, train=False, download=True,
+                                  transform=transform_test)
+        return train, test, 100
+
+    elif name == "celeba":
+        transform_train = transforms.Compose([
+        transforms.Resize(64),
+        transforms.CenterCrop(64),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+    ])
+
+        transform_test = transforms.Compose([
+            transforms.Resize(64),
+            transforms.CenterCrop(64),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        ])
+
+        base = os.path.join(data_dir, "celeba")  # data_dir/celeba
+
+        csv_attr = os.path.join(base, "list_attr_celeba.csv")
+        csv_split = os.path.join(base, "list_eval_partition.csv")
+        img_dir = os.path.join(base, "img_align_celeba")
+
+        train = CelebASmilingCSV(
+            csv_path=csv_attr,
+            img_dir=img_dir,
+            split_csv_path=csv_split,
+            split="train",
+            transform=transform_train,
+        )
+        test = CelebASmilingCSV(
+            csv_path=csv_attr,
+            img_dir=img_dir,
+            split_csv_path=csv_split,
+            split="test",
+            transform=transform_test,
+        )
+        return train, test, 2  # smiling / not smiling
+
     elif name == "mnist":
         transform = transforms.Compose([
             transforms.ToTensor(),
@@ -269,7 +427,7 @@ def get_dataset(name: str, data_dir: str = "./data") -> Tuple[Dataset, Dataset, 
 
     else:
         raise ValueError(f"Unknown dataset '{name}'. "
-                         f"Available: fashionmnist, emnist, cifar10, mnist")
+                         f"Available: fashionmnist, emnist, cifar10, cifar100, mnist, celeba")
 
 
 def get_alpha_for_dataset(dataset_name: str) -> float:
@@ -277,8 +435,10 @@ def get_alpha_for_dataset(dataset_name: str) -> float:
     alphas = {
         "fashionmnist": 0.1,
         "cifar10": 0.1,
+        "cifar100": 0.1,  
         "emnist": 0.05,
         "mnist": 0.1,
+        "celeba": 0.1,
     }
     return alphas.get(dataset_name, 0.1)
 

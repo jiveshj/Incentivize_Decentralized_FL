@@ -3,7 +3,7 @@
 # Run the full experiment grid matching the paper's setup.
 #
 # Topologies: SFL12, 3Con16, SFL18, KCN
-# Datasets:   fashionmnist, emnist, cifar10
+# Datasets:   fashionmnist, emnist, cifar10, cifar100, celeba, mnist
 # Algorithms: baseline_dropout, nodedrop (with all weight strategies)
 #
 # Usage:
@@ -26,7 +26,7 @@ if [[ "$1" == "--quick" ]]; then
 fi
 
 TOPOLOGIES=("SFL12" "3Con16" "SFL18" "KCN")
-DATASETS=("emnist" "fashionmnist" "cifar10")
+DATASETS=("fashionmnist" "celeba" "cifar10" "emnist")
 DEVICE="cpu"  # Change to "cuda" if GPU available
 
 # Grids matching the paper
@@ -34,8 +34,8 @@ LR_LIST=(0.05 0.03 0.01 0.005 0.003 0.001)
 BS_LIST=(32 64)
 TAU_LIST=(5 10)
 GAMMA_LIST=(0.8333 0.9091 0.9524 0.9804)  # β in {5,10,20,50}
-SEEDS_CIFAR=(0 1 2)
-SEEDS_OTHERS=(0 1 2 3 4 5)
+SEEDS_CIFAR=(1 2 3)
+SEEDS_OTHERS=(1 2 3 4 5 6)
 # Ensure output directory exists
 mkdir -p results
 
@@ -48,7 +48,7 @@ echo "============================================"
 
 for TOPO in "${TOPOLOGIES[@]}"; do
     for DATASET in "${DATASETS[@]}"; do
-    if [[ "$DATASET" == "cifar10" ]]; then
+    if [[ "$DATASET" == "cifar10" || "$DATASET" == "celeba" ]]; then
       SEEDS=("${SEEDS_CIFAR[@]}")
     else
       SEEDS=("${SEEDS_OTHERS[@]}")
@@ -76,23 +76,23 @@ for TOPO in "${TOPOLOGIES[@]}"; do
                         echo ""
                         echo ">>> [$TOPO / $DATASET] Running NodeDrop-IDSGD with ALL weight strategies..."
             
-                        for GAMMA in "${GAMMA_LIST[@]}"; do
-                            python run_experiment.py \
-                            --algorithm nodedrop \
-                            --weight_strategy ALL \
-                            --topology "$TOPO" \
-                            --dataset "$DATASET" \
-                            --T "$T" \
-                            --eval_every "$EVAL_EVERY" \
-                            --lr "$LR" \
-                            --seed "$SEED" \
-                            --batch_size "$BS" \
-                            --tau "$TAU" \
-                            --gamma "$GAMMA" \
-                            --tau_eta 5 \
-                            --device "$DEVICE" \
-                            --output_dir results
-                        done
+                   #     for GAMMA in "${GAMMA_LIST[@]}"; do
+                   #         python run_experiment.py \
+                    #        --algorithm nodedrop \
+                     #       --weight_strategy ALL \
+                      #      --topology "$TOPO" \
+                        #    --dataset "$DATASET" \
+                       #     --T "$T" \
+                    #        --eval_every "$EVAL_EVERY" \
+                    #        --lr "$LR" \
+                    #        --seed "$SEED" \
+                   #         --batch_size "$BS" \
+                   #         --tau "$TAU" \
+                   #         --gamma "$GAMMA" \
+                   #         --tau_eta 5 \
+                   #         --device "$DEVICE" \
+                   #         --output_dir results
+                    #    done
                     done
                 done
             done
