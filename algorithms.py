@@ -38,7 +38,7 @@ class DecentralizedSGD:
         model_fn: Callable[[], nn.Module],
         n_workers: int,
         mixing_matrix: torch.Tensor,
-        tau: int = 1,
+        tau: int,
         device: str = "cpu",
     ):
         self.n_workers = n_workers
@@ -173,7 +173,7 @@ class NodeDropIDSGD:
         gamma: float = 0.5,
         epsilon: float = 1.0,
         tau: int = 1,
-        tau_eta: int = 10,
+        tau_eta: int = 5,
         device: str = "cpu",
     ):
         """
@@ -359,11 +359,23 @@ class NodeDropIDSGD:
         s = self._estimate_scaling_factors(b)
 
         # Effective learning rate: η̂_i = η * b_i / (τ * (s_i + ε))
-        effective_lrs = torch.zeros(self.n_workers, device=self.device)
+
+         # Effective learning rate: η̂_i = η * b_i / (τ * (s_i + ε))
+        """effective_lrs = torch.zeros(self.n_workers, device=self.device)
         for i in range(self.n_workers):
             if self.active[i]:
                 effective_lrs[i] = base_lr * b[i] / (self.tau * (s[i] + self.epsilon))
+        """
 
+        effective_lrs = torch.zeros(self.n_workers, device=self.device)
+        for i in range(self.n_workers):
+            if self.active[i]:
+                effective_lrs[i] = base_lr * b[i] / (self.tau * ((s[i] +self.epsilon)))
+
+        active_mask = torch.tensor(self.active, device=self.device, dtype=torch.bool)
+        active_lrs = effective_lrs[active_mask]
+        
+        
         # Store for logging
         self.dropout_probs.append(sigma_vals.cpu().numpy().copy())
         self.effective_lrs.append(effective_lrs.cpu().numpy().copy())

@@ -79,7 +79,7 @@ def determine_dropouts(client_losses_or_accuracies: List[float],
     """
     dropouts = []
     for i, (loss, threshold) in enumerate(zip(client_losses_or_accuracies, rho)):
-        if active[i] and loss > threshold:
+        if active[i] and loss < threshold:
             dropouts.append(i)
     return dropouts
 
@@ -288,7 +288,7 @@ def estimate_rho_local_training_loss(models: List[nn.Module],
                                 n_workers: int,
                                 solo_rounds: int = 5,
                                 tau: int = 4,
-                                solo_lr: float = 0.01,
+                                solo_lr: float = 0.05,
                                 device: str = "cpu") -> List[float]:
     """
     Estimate dropout thresholds ρ_i via local-only training.

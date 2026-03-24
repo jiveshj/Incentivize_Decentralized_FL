@@ -126,6 +126,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     criterion = nn.CrossEntropyLoss()
     global_test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
     warmup_rounds = int(args.T * args.dropout_warmup_frac)
+    
 
     # Initialize algorithm
     if algorithm_class == NodeDropIDSGD:
@@ -148,6 +149,8 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             tau=args.tau,
             device=device,
         )
+    
+    
 
     history = {
         "train_loss": [], "global_test_acc": [], "per_client_acc": [],
@@ -159,6 +162,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     current_G = G.copy()
     active = [True] * n_workers
     rho = None #estimated once at Warmup
+
 
     for t in range(args.T):
         # Learning rate schedule
@@ -183,14 +187,25 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
 
         history["train_loss"].append(train_loss)
 
+        
         # --- Dropout check after warmup ---
         if t == warmup_rounds and t > 0 and rho is None:
+          
+           
             # Estimate ρ_i
-            rho = estimate_rho_local_training_loss(
+            """rho = estimate_rho_local_training_accuracy(
                 algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
+                #solo_rounds=args.rho_solo_rounds, tau=args.tau,
                 solo_rounds=warmup_rounds, tau=args.tau,
                 solo_lr=lr, device=device
-            )
+            )"""
+            target_steps = 100
+            solo_rounds = max(1, target_steps // args.tau)  # e.g., 20 or 10
+            rho = estimate_rho_local_training_loss(
+            algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
+            solo_rounds=solo_rounds, tau=args.tau,
+            solo_lr=args.lr, device=device
+)
             if args.verbose:
                 print(f"\n>>> Round {t+1}: Estimated ρ_i = "
                       f"{[f'{r:.4f}' for r in rho]}")
@@ -214,7 +229,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             """for i in range(len(client_accuracies)):
                 print(f"\n>>> Round_n {t+1}")
                 print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
-                              f"ρ_n={rho[i]:.4f}") """
+                              f"ρ_n={rho[i]:.4f}")  """
 
             if len(dropouts) > 0:
                 if args.verbose:
@@ -345,7 +360,7 @@ def main():
     parser.add_argument("--T", type=int, default=200, help="Communication rounds")
     parser.add_argument("--tau", type=int, default=4, help="Local SGD steps")
     parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=0.05)
+    parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--lr_schedule", type=str, default="cosine",
                         choices=["none", "cosine", "step"])
 
@@ -354,7 +369,7 @@ def main():
                         help="Interpolation between ERM and dropout penalty")
     parser.add_argument("--epsilon", type=float, default=1.0,
                         help="Smoothing in LR denominator")
-    parser.add_argument("--tau_eta", type=int, default=10,
+    parser.add_argument("--tau_eta", type=int, default=5,
                         help="Gossip steps for scaling factor estimation")
 
     # Dropout simulation
@@ -436,17 +451,21 @@ def main():
     )
 
     # --- Run experiment ---
-    print(f"\nAlgorithm: {args.algorithm}")
-    print(f"T={args.T}, tau={args.tau}, lr={args.lr}, schedule={args.lr_schedule}")
-    print(f"{'='*60}\n")
+    
 
     if args.algorithm == "baseline":
+        print(f"\nAlgorithm: {args.algorithm}")
+        print(f"T={args.T}, tau={args.tau}, lr={args.lr}, batch_size={args.batch_size}, seed={args.seed}, schedule={args.lr_schedule}")
+        print(f"{'='*60}\n")
         history, algo = run_baseline(
             args, model_fn, train_loaders, test_loaders, test_dataset,
             W, n_workers, G, client_distributions, device
         )
 
     elif args.algorithm == "baseline_dropout":
+        print(f"\nAlgorithm: {args.algorithm}")
+        print(f"T={args.T}, tau={args.tau}, lr={args.lr}, batch_size={args.batch_size}, seed={args.seed}, schedule={args.lr_schedule}")
+        print(f"{'='*60}\n")
         history, algo = run_with_dropout(
             args, model_fn, train_loaders,val_loaders, test_loaders, test_dataset,
             W, n_workers, G, client_distributions, device,
@@ -458,9 +477,10 @@ def main():
             # Run all strategies and compare
             all_results = {}
             for strategy_name in list_strategies():
-                print(f"\n{'#'*60}")
+                print(f"\nAlgorithm: {args.algorithm}")
+                print(f"T={args.T}, tau={args.tau}, lr={args.lr}, batch_size={args.batch_size}, gamma={args.gamma}, seed={args.seed}, schedule={args.lr_schedule}")
                 print(f"# Weight Strategy: {strategy_name}")
-                print(f"{'#'*60}")
+                print(f"{'#'*60}\n")
                 set_seed(args.seed)  # Reset seed for fair comparison
 
                 strategy_fn = get_weight_strategy(strategy_name)
