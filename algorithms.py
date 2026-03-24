@@ -60,6 +60,7 @@ class DecentralizedSGD:
 
     def train_round(
         self,
+        bs,
         loaders: List[DataLoader],
         lr: float,
         criterion: nn.Module,
@@ -271,11 +272,11 @@ class NodeDropIDSGD:
 
     #     self.rho_initialized = True
 
-    def _compute_dropout_prob(self, client_idx: int, loss_val: float) -> float:
+    def _compute_dropout_prob(self, rho, client_idx: int, loss_val: float) -> float:
         """σ_i(x) = sigmoid(F_i(x) - ρ_i)"""
-        return torch.sigmoid(torch.tensor(loss_val - self.rho[client_idx].item())).item()
+        return torch.sigmoid(torch.tensor(loss_val - rho[client_idx].item())).item()
 
-    def _compute_prefactors(self, client_losses: List[float]) -> torch.Tensor:
+    def _compute_prefactors(self,rho, client_losses: List[float]) -> torch.Tensor:
         """
         Compute pre-factors b_i for all clients.
         b_i = (1 - γ) + γ * a_i * σ_i * (1 - σ_i)
@@ -286,7 +287,7 @@ class NodeDropIDSGD:
         for i in range(self.n_workers):
             if not self.active[i]:
                 continue
-            sigma_i = self._compute_dropout_prob(i, client_losses[i])
+            sigma_i = self._compute_dropout_prob(rho,i, client_losses[i])
             sigma_vals[i] = sigma_i
             q_i = sigma_i * (1 - sigma_i)
             b[i] = (1 - self.gamma) + self.gamma * self.a[i].item() * q_i
@@ -310,10 +311,10 @@ class NodeDropIDSGD:
 
         # Ensure non-degenerate: s_i >= b_i
         s = torch.max(s, b)
-
+ 
         return s
 
-    def _get_client_losses(self, loaders: List[DataLoader],
+    def _get_client_losses(self, bs,loaders: List[DataLoader],
                            criterion: nn.Module) -> List[float]:
         """Compute current empirical loss for each active client."""
         losses = [0.0] * self.n_workers
@@ -336,6 +337,8 @@ class NodeDropIDSGD:
 
     def train_round(
         self,
+        bs,
+        rho,
         loaders: List[DataLoader],
         base_lr: float,
         criterion: nn.Module,
@@ -354,11 +357,10 @@ class NodeDropIDSGD:
             loader_iters = [iter(dl) if dl is not None else None for dl in loaders]
 
         # --- Phase 1: Learning rate estimation ---
-        client_losses = self._get_client_losses(loaders, criterion)
-        b, sigma_vals = self._compute_prefactors(client_losses)
+        client_losses = self._get_client_losses(bs, loaders, criterion)
+        b, sigma_vals = self._compute_prefactors(rho,client_losses)
         s = self._estimate_scaling_factors(b)
 
-        # Effective learning rate: η̂_i = η * b_i / (τ * (s_i + ε))
 
          # Effective learning rate: η̂_i = η * b_i / (τ * (s_i + ε))
         """effective_lrs = torch.zeros(self.n_workers, device=self.device)
@@ -370,7 +372,7 @@ class NodeDropIDSGD:
         effective_lrs = torch.zeros(self.n_workers, device=self.device)
         for i in range(self.n_workers):
             if self.active[i]:
-                effective_lrs[i] = base_lr * b[i] / (self.tau * ((s[i] +self.epsilon)))
+                effective_lrs[i] =  base_lr * b[i] / (self.tau * ((s[i] +self.epsilon)))
 
         active_mask = torch.tensor(self.active, device=self.device, dtype=torch.bool)
         active_lrs = effective_lrs[active_mask]

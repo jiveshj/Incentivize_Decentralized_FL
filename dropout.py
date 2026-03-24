@@ -286,9 +286,9 @@ def estimate_rho_local_training_loss(models: List[nn.Module],
                                 val_loaders: List[DataLoader],
                                 criterion: nn.Module,
                                 n_workers: int,
-                                solo_rounds: int = 5,
-                                tau: int = 4,
-                                solo_lr: float = 0.05,
+                                solo_rounds: int,
+                                tau: int,
+                                solo_lr: float,
                                 device: str = "cpu") -> List[float]:
     """
     Estimate dropout thresholds ρ_i via local-only training.

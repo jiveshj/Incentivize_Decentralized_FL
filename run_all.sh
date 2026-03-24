@@ -76,23 +76,23 @@ for TOPO in "${TOPOLOGIES[@]}"; do
                         echo ""
                         echo ">>> [$TOPO / $DATASET] Running NodeDrop-IDSGD with ALL weight strategies..."
             
-                   #     for GAMMA in "${GAMMA_LIST[@]}"; do
-                   #         python run_experiment.py \
-                    #        --algorithm nodedrop \
-                     #       --weight_strategy ALL \
-                      #      --topology "$TOPO" \
-                        #    --dataset "$DATASET" \
-                       #     --T "$T" \
-                    #        --eval_every "$EVAL_EVERY" \
-                    #        --lr "$LR" \
-                    #        --seed "$SEED" \
-                   #         --batch_size "$BS" \
-                   #         --tau "$TAU" \
-                   #         --gamma "$GAMMA" \
-                   #         --tau_eta 5 \
-                   #         --device "$DEVICE" \
-                   #         --output_dir results
-                    #    done
+                        for GAMMA in "${GAMMA_LIST[@]}"; do
+                            python run_experiment.py \
+                            --algorithm nodedrop \
+                            --weight_strategy ALL \
+                            --topology "$TOPO" \
+                            --dataset "$DATASET" \
+                            --T "$T" \
+                            --eval_every "$EVAL_EVERY" \
+                            --lr "$LR" \
+                            --seed "$SEED" \
+                            --batch_size "$BS" \
+                            --tau "$TAU" \
+                            --gamma "$GAMMA" \
+                            --tau_eta 5 \
+                            --device "$DEVICE" \
+                            --output_dir results
+                        done
                     done
                 done
             done

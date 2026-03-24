@@ -77,7 +77,7 @@ def run_baseline(args, model_fn, train_loaders, test_loaders, test_dataset,
         else:
             lr = args.lr
 
-        train_loss, loader_iters = dsgd.train_round(
+        train_loss, loader_iters = dsgd.train_round(args.batch_size,
             train_loaders, lr, criterion, loader_iters
         )
         history["train_loss"].append(train_loss)
@@ -161,27 +161,27 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     current_W = W.clone().to(device)
     current_G = G.copy()
     active = [True] * n_workers
-    rho = None #estimated once at Warmup
+    rho = torch.zeros(n_workers, device=device) #estimated once at Warmup
 
 
     for t in range(args.T):
         # Learning rate schedule
-        if args.lr_schedule == "cosine":
+        """if args.lr_schedule == "cosine":
             lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
         elif args.lr_schedule == "step":
             lr = args.lr * (0.1 ** (t // (args.T // 3)))
-        else:
-            lr = args.lr
+        else:"""
+        lr = args.lr
 
         # Update mixing matrix in the algorithm
         if algorithm_class == NodeDropIDSGD:
             algo.W = current_W
-            train_loss, loader_iters, round_info = algo.train_round(
+            train_loss, loader_iters, round_info = algo.train_round(args.batch_size,rho,
                 train_loaders, lr, criterion, loader_iters
             )
         else:
             algo.W = current_W
-            train_loss, loader_iters = algo.train_round(
+            train_loss, loader_iters = algo.train_round(args.batch_size,
                 train_loaders, lr, criterion, loader_iters
             )
 
