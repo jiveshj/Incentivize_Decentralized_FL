@@ -317,6 +317,78 @@ def dropout_risk_weights(G: nx.Graph, n_workers: int,
 
     return 1.0 + kl_divs * specialization
 
+#MORE DATA-BASED STRATEGIES CAN BE ADDED HERE
+
+@register_strategy("num_samples")
+def num_samples_weights(G: nx.Graph, n_workers: int,
+                        client_distributions: List[np.ndarray] = None,
+                        client_indices: List[List[int]] = None,
+                        **kwargs) -> np.ndarray:
+    """
+    a_i ∝ number of training samples at client i.
+    """
+    assert client_indices is not None, "Need client_indices (list of index lists)"
+    sizes = np.array([len(idx) for idx in client_indices], dtype=float)
+    # avoid all-equal / zero
+    if sizes.max() == 0:
+        return np.ones(n_workers, dtype=float)
+    sizes_norm = sizes / sizes.mean()
+    return sizes_norm
+
+@register_strategy("minority_support")
+def minority_support_weights(G: nx.Graph, n_workers: int,
+                             client_distributions: List[np.ndarray] = None,
+                             **kwargs) -> np.ndarray:
+    """
+    Emphasize clients that hold rare global classes.
+    a_i grows with mass on globally rare labels.
+    """
+    assert client_distributions is not None, "Need client_distributions"
+    dists = np.array(client_distributions, dtype=float)
+    global_dist = dists.mean(axis=0)
+    # avoid divide-by-zero
+    eps = 1e-8
+    rarity = 1.0 / (global_dist + eps)
+    rarity /= rarity.max()
+
+    scores = (dists * rarity).sum(axis=1)
+    # normalize around 1
+    scores /= scores.mean() + eps
+    return scores
+
+@register_strategy("balanced_client")
+def balanced_client_weights(G: nx.Graph, n_workers: int,
+                            client_distributions: List[np.ndarray] = None,
+                            **kwargs) -> np.ndarray:
+    """
+    Reward clients whose label distribution is closer to uniform.
+    a_i = 1 + (entropy_i / max_entropy).
+    """
+    assert client_distributions is not None, "Need client_distributions"
+    dists = np.array(client_distributions, dtype=float)
+    n_classes = dists.shape[1]
+    max_entropy = np.log(n_classes)
+
+    entropies = np.array([compute_label_entropy(d) for d in dists])
+    norm_entropy = entropies / (max_entropy + 1e-8)
+    return 1.0 + norm_entropy
+
+@register_strategy("global_proximity")
+def global_proximity_weights(G: nx.Graph, n_workers: int,
+                             client_distributions: List[np.ndarray] = None,
+                             **kwargs) -> np.ndarray:
+    """
+    Higher weight for clients whose distribution is closest to global.
+    a_i = 1 + (max_KL - KL_i) / max_KL.
+    """
+    assert client_distributions is not None, "Need client_distributions"
+    dists = np.array(client_distributions, dtype=float)
+    global_dist = dists.mean(axis=0)
+
+    kl_divs = np.array([compute_kl_divergence(d, global_dist) for d in dists])
+    max_kl = kl_divs.max() + 1e-8
+    proximity = (max_kl - kl_divs) / max_kl  # 1 for closest, 0 for farthest
+    return 1.0 + proximity
 
 # ===========================================================================
 # HYBRID STRATEGIES (topology + data)

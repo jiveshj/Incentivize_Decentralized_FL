@@ -1,0 +1,10 @@
+dataset;topology;algorithm;lr;batch_size;tau;gamma;weight_strategy;num_seeds;expected_seeds;avg_preferred_acc_mean;avg_preferred_acc_std;final_retention_rate_mean;final_retention_rate_std
+fashionmnist;SFL12;baseline_dropout;0.05;32;5;0.5;degree;1;6;0.5221666666666667;0.0;0.3333333333333333;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;betweenness;1;6;0.351;0.0;1.0;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;closeness;1;6;0.3803333333333334;0.0;1.0;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;degree;1;6;0.3945;0.0;1.0;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;degree_normalized;1;6;0.38466666666666666;0.0;1.0;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;eigenvector;1;6;0.3965;0.0;1.0;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;pagerank;1;6;0.38166666666666665;0.0;1.0;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;uniform;1;6;0.37716666666666665;0.0;1.0;0.0
+fashionmnist;SFL12;nodedrop;0.05;32;5;0.8333;vertex_connectivity;1;6;0.3705;0.0;1.0;0.0

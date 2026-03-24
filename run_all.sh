@@ -26,7 +26,7 @@ if [[ "$1" == "--quick" ]]; then
 fi
 
 TOPOLOGIES=("SFL12" "3Con16" "SFL18" "KCN")
-DATASETS=("fashionmnist" "emnist" "cifar10")
+DATASETS=("emnist" "fashionmnist" "cifar10")
 DEVICE="cpu"  # Change to "cuda" if GPU available
 
 # Grids matching the paper
@@ -65,7 +65,6 @@ for TOPO in "${TOPOLOGIES[@]}"; do
                             --topology "$TOPO" \
                             --dataset "$DATASET" \
                             --lr "$LR" \
-                            --gamma "0" \
                             --seed "$SEED" \
                             --batch_size "$BS" \
                             --tau "$TAU" \

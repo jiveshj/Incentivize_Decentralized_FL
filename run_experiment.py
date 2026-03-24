@@ -293,7 +293,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
                       f"avg_all_acc={np.mean(client_accs)*100:.2f}%")
 
     # --- Post-training: solo train dropped clients ---   (Not sure if I need to do this but it could be interesting to see how much they can improve with solo training)
-    if len(all_dropped) > 0 and args.solo_train_rounds > 0:
+    """if len(all_dropped) > 0 and args.solo_train_rounds > 0:
         if args.verbose:
             print(f"\n>>> Solo training for dropped clients: {list(set(all_dropped))}")
         remaining_rounds = args.T - warmup_rounds
@@ -301,7 +301,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             algo.models, train_loaders, list(set(all_dropped)), criterion,
             n_rounds=remaining_rounds, tau=args.tau, lr=args.lr * 0.5,
             device=device
-        )
+        ) """
 
     # --- Final evaluation: preferred model accuracy ---
     final_client_results = evaluate_per_client(
@@ -477,6 +477,7 @@ def main():
             # Run all strategies and compare
             all_results = {}
             for strategy_name in list_strategies():
+                args.weight_strategy = strategy_name
                 print(f"\nAlgorithm: {args.algorithm}")
                 print(f"T={args.T}, tau={args.tau}, lr={args.lr}, batch_size={args.batch_size}, gamma={args.gamma}, seed={args.seed}, schedule={args.lr_schedule}")
                 print(f"# Weight Strategy: {strategy_name}")
@@ -494,13 +495,29 @@ def main():
                     algorithm_class=NodeDropIDSGD,
                     importance_weights=weights,
                 )
-                all_results[strategy_name] = {
-                    "avg_preferred_acc": history["avg_preferred_acc"],
-                    "final_retention_rate": history["final_retention_rate"],
-                    "preferred_accs": history["preferred_model_acc"],
+                #all_results[strategy_name] = {
+                #    "avg_preferred_acc": history["avg_preferred_acc"],
+                #    "final_retention_rate": history["final_retention_rate"],
+                #    "preferred_accs": history["preferred_model_acc"],
+                #}
+
+                exp_name = generate_experiment_name(args)
+                save_path = os.path.join(args.output_dir, f"{exp_name}.json")
+                results = {
+                    "args": vars(args),
+                    "topology_info": {
+                        "n_nodes": topo_info["n_nodes"],
+                        "n_edges": topo_info["n_edges"],
+                        "spectral_gap": topo_info["spectral_gap"],
+                        "articulation_points": topo_info["articulation_points"],
+                    },
+                    "data_heterogeneity": hetero_info,
+                    "history": history,
                 }
+                save_results(results, save_path)
 
             # Summary comparison
+            """
             print(f"\n{'='*70}")
             print(f"STRATEGY COMPARISON SUMMARY")
             print(f"{'='*70}")
@@ -515,6 +532,7 @@ def main():
             save_path = os.path.join(args.output_dir,
                                      f"comparison_{args.dataset}_{args.topology}.json")
             save_results({"args": vars(args), "strategies": all_results}, save_path)
+            """
             return
 
         else:
