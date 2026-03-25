@@ -134,4 +134,4 @@ def generate_experiment_name(args) -> str:
     """Generate a descriptive experiment name from args."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return (f"{args.algorithm}_{args.dataset}_{args.topology}_"
-            f"N{args.n_workers}_tau{args.tau}_T{args.T}_{timestamp}")
+            f"N{args.n_workers}_tau{args.tau}_LR{args.lr}_seed{args.seed}_BS{args.batch_size}_gamma{args.gamma}_strategy_{args.weight_strategy}_{timestamp}")

@@ -38,8 +38,9 @@ from data_utils import (get_dataset, get_alpha_for_dataset, partition_dirichlet,
 from models import get_model_fn
 from algorithms import DecentralizedSGD, NodeDropIDSGD
 from weight_strategies import get_weight_strategy, list_strategies
-from dropout import (estimate_rho_local_training, determine_dropouts,
-                     apply_dropouts, compute_client_losses, train_solo_models)
+from dropout import (estimate_rho_local_training_loss, estimate_rho_local_training_accuracy, determine_dropouts,
+                     apply_dropouts, compute_client_losses, compute_client_accuracies,
+                     train_solo_models)
 
 
 #We have a learning rate schedule, but have learning rate fixed for local steps in IDSGD (Maybe we should change that?)
@@ -63,20 +64,20 @@ def run_baseline(args, model_fn, train_loaders, test_loaders, test_dataset,
 
     history = {
         "train_loss": [], "global_test_loss": [], "global_test_acc": [],
-        "per_client_acc": [], "consensus": [],
+        "per_client_acc": [], "consensus": [], "avg_preferred_acc": [],
     }
     loader_iters = None
 
     for t in range(args.T):
         # Learning rate schedule
-        if args.lr_schedule == "cosine":
-            lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
-        elif args.lr_schedule == "step":
-            lr = args.lr * (0.1 ** (t // (args.T // 3)))
-        else:
-            lr = args.lr
+        #if args.lr_schedule == "cosine":
+        #    lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
+        #elif args.lr_schedule == "step":
+        #    lr = args.lr * (0.1 ** (t // (args.T // 3)))
+        #else:
+        lr = args.lr
 
-        train_loss, loader_iters = dsgd.train_round(
+        train_loss, loader_iters = dsgd.train_round(args.batch_size,
             train_loaders, lr, criterion, loader_iters
         )
         history["train_loss"].append(train_loss)
@@ -98,6 +99,8 @@ def run_baseline(args, model_fn, train_loaders, test_loaders, test_dataset,
             history["global_test_acc"].append(global_result["accuracy"])
             history["per_client_acc"].append(client_accs)
             history["consensus"].append(cd)
+
+            history["avg_preferred_acc"] = float(np.mean(client_accs))
 
             if args.verbose:
                 print(f"Round {t+1:>4d}/{args.T} | lr={lr:.5f} | "
@@ -125,6 +128,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     criterion = nn.CrossEntropyLoss()
     global_test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
     warmup_rounds = int(args.T * args.dropout_warmup_frac)
+    
 
     # Initialize algorithm
     if algorithm_class == NodeDropIDSGD:
@@ -147,6 +151,8 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             tau=args.tau,
             device=device,
         )
+    
+    
 
     history = {
         "train_loss": [], "global_test_acc": [], "per_client_acc": [],
@@ -157,58 +163,90 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     current_W = W.clone().to(device)
     current_G = G.copy()
     active = [True] * n_workers
-    rho = None #estimated once at Warmup
+    rho = torch.zeros(n_workers, device=device) #estimated once at Warmup
+    rho_initialized = False
+
 
     for t in range(args.T):
         # Learning rate schedule
-        if args.lr_schedule == "cosine":
-            lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
-        elif args.lr_schedule == "step":
-            lr = args.lr * (0.1 ** (t // (args.T // 3)))
-        else:
-            lr = args.lr
+        #if args.lr_schedule == "cosine":
+        #    lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
+        #elif args.lr_schedule == "step":
+        #    lr = args.lr * (0.1 ** (t // (args.T // 3)))
+        #else:
+        lr = args.lr
 
         # Update mixing matrix in the algorithm
         if algorithm_class == NodeDropIDSGD:
             algo.W = current_W
-            train_loss, loader_iters, round_info = algo.train_round(
-                train_loaders, lr, criterion, loader_iters
-            )
+            if t < warmup_rounds:  # During warmup, train with base learning rate to learn faster
+                train_loss, loader_iters, round_info = algo.train_round(t,args.T,True,args.batch_size, rho,
+                    train_loaders, lr, criterion, loader_iters
+                )
+            else:
+                train_loss, loader_iters, round_info = algo.train_round(t,args.T,False,args.batch_size, rho,
+                    train_loaders, lr, criterion, loader_iters
+                )
+
         else:
             algo.W = current_W
-            train_loss, loader_iters = algo.train_round(
+            train_loss, loader_iters = algo.train_round(args.batch_size,
                 train_loaders, lr, criterion, loader_iters
             )
 
         history["train_loss"].append(train_loss)
 
+        
         # --- Dropout check after warmup ---
-        if t == warmup_rounds and t > 0 and rho is None:
+        if t == warmup_rounds and t > 0 and rho_initialized == False:
+
+            rho_initialized = True
+          
+           
             # Estimate ρ_i
-            rho = estimate_rho_local_training(
+            """rho = estimate_rho_local_training_accuracy(
                 algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
-                solo_rounds=args.rho_solo_rounds, tau=args.tau,
+                #solo_rounds=args.rho_solo_rounds, tau=args.tau,
+                solo_rounds=warmup_rounds, tau=args.tau,
                 solo_lr=lr, device=device
-            )
+            )"""
+            target_steps = 100
+            solo_rounds = max(1, target_steps // args.tau)  # e.g., 20 or 10
+            rho = estimate_rho_local_training_loss(
+            algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
+            solo_rounds=solo_rounds, tau=args.tau,
+            solo_lr=args.lr, device=device
+)
             if args.verbose:
                 print(f"\n>>> Round {t+1}: Estimated ρ_i = "
                       f"{[f'{r:.4f}' for r in rho]}")
         # Check for dropouts periodically after warmup
-        if rho is not None and t>= warmup_rounds and (t-warmup_rounds) % args.dropout_check_interval == 0:
+        if rho_initialized == True  and t>= warmup_rounds and (t-warmup_rounds) % args.dropout_check_interval == 0:
 
             # Compute current losses on validation data (same as rho_i)
             client_losses = compute_client_losses(
                 algo.models, val_loaders, criterion, active, device
             )
 
+            client_accuracies = compute_client_accuracies(
+                algo.models, val_loaders, active, device
+            )
+
             # Determine who wants to drop
+            #dropouts = determine_dropouts(client_losses, rho, active)
             dropouts = determine_dropouts(client_losses, rho, active)
+
+            #Debug: print client losses, accuracies, and rho values
+           # for i in range(len(client_accuracies)):
+            #    print(f"\n>>> Round_n {t+1}")
+             #   print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
+              #                f"ρ_n={rho[i]:.4f}")  
 
             if len(dropouts) > 0:
                 if args.verbose:
                     print(f"\n>>> Round {t+1}: Clients {dropouts} want to drop out")
                     for d in dropouts:
-                        print(f"    Client {d}: loss={client_losses[d]:.4f}, "
+                        print(f"    Client {d}: loss={client_losses[d]:.4f}, acc={client_accuracies[d]:.4f},"
                               f"ρ={rho[d]:.4f}")
 
                 # Apply dropouts
@@ -266,7 +304,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
                       f"avg_all_acc={np.mean(client_accs)*100:.2f}%")
 
     # --- Post-training: solo train dropped clients ---   (Not sure if I need to do this but it could be interesting to see how much they can improve with solo training)
-    if len(all_dropped) > 0 and args.solo_train_rounds > 0:
+    """if len(all_dropped) > 0 and args.solo_train_rounds > 0:
         if args.verbose:
             print(f"\n>>> Solo training for dropped clients: {list(set(all_dropped))}")
         remaining_rounds = args.T - warmup_rounds
@@ -274,7 +312,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             algo.models, train_loaders, list(set(all_dropped)), criterion,
             n_rounds=remaining_rounds, tau=args.tau, lr=args.lr * 0.5,
             device=device
-        )
+        ) """
 
     # --- Final evaluation: preferred model accuracy ---
     final_client_results = evaluate_per_client(
@@ -324,7 +362,7 @@ def main():
 
     # Data
     parser.add_argument("--dataset", type=str, default="fashionmnist",
-                        choices=["fashionmnist", "emnist", "cifar10", "mnist"])
+                        choices=["fashionmnist", "emnist", "cifar10", "cifar100", "celeba","mnist"],)
     parser.add_argument("--alpha", type=float, default=None,
                         help="Dirichlet alpha (None = use paper default)")
     parser.add_argument("--data_dir", type=str, default="./data")
@@ -333,7 +371,7 @@ def main():
     parser.add_argument("--T", type=int, default=200, help="Communication rounds")
     parser.add_argument("--tau", type=int, default=4, help="Local SGD steps")
     parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=0.05)
+    parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--lr_schedule", type=str, default="cosine",
                         choices=["none", "cosine", "step"])
 
@@ -342,7 +380,7 @@ def main():
                         help="Interpolation between ERM and dropout penalty")
     parser.add_argument("--epsilon", type=float, default=1.0,
                         help="Smoothing in LR denominator")
-    parser.add_argument("--tau_eta", type=int, default=10,
+    parser.add_argument("--tau_eta", type=int, default=5,
                         help="Gossip steps for scaling factor estimation")
 
     # Dropout simulation
@@ -419,22 +457,26 @@ def main():
     ]
     test_loaders = create_client_test_loaders(
         test_dataset, client_distributions, n_workers,
-        test_samples_per_client=args.test_samples_per_client,
+        test_samples_per_client=args.test_samples_per_client, batch_size=args.batch_size,
         seed=args.seed
     )
 
     # --- Run experiment ---
-    print(f"\nAlgorithm: {args.algorithm}")
-    print(f"T={args.T}, tau={args.tau}, lr={args.lr}, schedule={args.lr_schedule}")
-    print(f"{'='*60}\n")
+    
 
     if args.algorithm == "baseline":
+        print(f"\nAlgorithm: {args.algorithm}")
+        print(f"T={args.T}, tau={args.tau}, lr={args.lr}, batch_size={args.batch_size}, seed={args.seed}, schedule={args.lr_schedule}")
+        print(f"{'='*60}\n")
         history, algo = run_baseline(
             args, model_fn, train_loaders, test_loaders, test_dataset,
             W, n_workers, G, client_distributions, device
         )
 
     elif args.algorithm == "baseline_dropout":
+        print(f"\nAlgorithm: {args.algorithm}")
+        print(f"T={args.T}, tau={args.tau}, lr={args.lr}, batch_size={args.batch_size}, seed={args.seed}, schedule={args.lr_schedule}")
+        print(f"{'='*60}\n")
         history, algo = run_with_dropout(
             args, model_fn, train_loaders,val_loaders, test_loaders, test_dataset,
             W, n_workers, G, client_distributions, device,
@@ -446,9 +488,11 @@ def main():
             # Run all strategies and compare
             all_results = {}
             for strategy_name in list_strategies():
-                print(f"\n{'#'*60}")
+                args.weight_strategy = strategy_name
+                print(f"\nAlgorithm: {args.algorithm}")
+                print(f"T={args.T}, tau={args.tau}, lr={args.lr}, batch_size={args.batch_size}, gamma={args.gamma}, seed={args.seed}, schedule={args.lr_schedule}")
                 print(f"# Weight Strategy: {strategy_name}")
-                print(f"{'#'*60}")
+                print(f"{'#'*60}\n")
                 set_seed(args.seed)  # Reset seed for fair comparison
 
                 strategy_fn = get_weight_strategy(strategy_name)
@@ -462,13 +506,29 @@ def main():
                     algorithm_class=NodeDropIDSGD,
                     importance_weights=weights,
                 )
-                all_results[strategy_name] = {
-                    "avg_preferred_acc": history["avg_preferred_acc"],
-                    "final_retention_rate": history["final_retention_rate"],
-                    "preferred_accs": history["preferred_model_acc"],
+                #all_results[strategy_name] = {
+                #    "avg_preferred_acc": history["avg_preferred_acc"],
+                #    "final_retention_rate": history["final_retention_rate"],
+                #    "preferred_accs": history["preferred_model_acc"],
+                #}
+
+                exp_name = generate_experiment_name(args)
+                save_path = os.path.join(args.output_dir, f"{exp_name}.json")
+                results = {
+                    "args": vars(args),
+                    "topology_info": {
+                        "n_nodes": topo_info["n_nodes"],
+                        "n_edges": topo_info["n_edges"],
+                        "spectral_gap": topo_info["spectral_gap"],
+                        "articulation_points": topo_info["articulation_points"],
+                    },
+                    "data_heterogeneity": hetero_info,
+                    "history": history,
                 }
+                save_results(results, save_path)
 
             # Summary comparison
+            """
             print(f"\n{'='*70}")
             print(f"STRATEGY COMPARISON SUMMARY")
             print(f"{'='*70}")
@@ -483,6 +543,7 @@ def main():
             save_path = os.path.join(args.output_dir,
                                      f"comparison_{args.dataset}_{args.topology}.json")
             save_results({"args": vars(args), "strategies": all_results}, save_path)
+            """
             return
 
         else:

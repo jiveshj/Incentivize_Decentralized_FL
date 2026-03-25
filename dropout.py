@@ -42,8 +42,32 @@ def compute_client_losses(models: List[nn.Module],
         losses[i] = total_loss / max(total_n, 1)
     return losses
 
+    
+    """Compute accuracy for each active client for the dropout function."""
+def compute_client_accuracies(
+        models: List[nn.Module],
+        loaders: List[DataLoader],
+        active: List[bool],
+        device: str = "cpu",
+    ) -> List[float]:
+    accuracies = [0.0] * len(models)
+    for i, (model, loader) in enumerate(zip(models, loaders)):
+        if not active[i] or loader is None:
+            continue
+        model.eval()
+        correct, total = 0, 0
+        with torch.no_grad():
+            for data, target in loader:
+                data, target = data.to(device), target.to(device)
+                output = model(data)                 
+                preds = output.argmax(dim=1)        
+                correct += (preds == target).sum().item()
+                total += target.size(0)
+        accuracies[i] = correct / max(total, 1)
+    return accuracies
 
-def determine_dropouts(client_losses: List[float],
+
+def determine_dropouts(client_losses_or_accuracies: List[float],
                        rho: List[float],
                        active: List[bool]) -> List[int]:
     """
@@ -54,8 +78,11 @@ def determine_dropouts(client_losses: List[float],
     Returns list of client indices that want to drop out.
     """
     dropouts = []
-    for i, (loss, threshold) in enumerate(zip(client_losses, rho)):
-        if active[i] and loss > threshold:
+    for i in range(len(client_losses_or_accuracies)):
+        #print(f"Client_n {i}: loss_n={client_losses_or_accuracies[i]:.4f},"
+        #                     f"ρ_n={rho[i]:.4f}")  
+        #if active[i] and loss < threshold:
+        if active[i] and client_losses_or_accuracies[i] < rho[i]:
             dropouts.append(i)
     return dropouts
 
@@ -197,15 +224,74 @@ def apply_dropouts(G: nx.Graph,
     # return new_G, new_W, new_active, dropout_info
 
 
-def estimate_rho_local_training(models: List[nn.Module],
+def estimate_rho_local_training_accuracy(
+    models: List[nn.Module],
+    model_fn,
+    train_loaders: List[DataLoader],
+    val_loaders: List[DataLoader],
+    criterion: nn.Module,
+    n_workers: int,
+    solo_rounds: int = 5,
+    tau: int = 4,
+    solo_lr: float = 0.01,
+    device: str = "cpu",
+) -> List[float]:
+    """
+    Estimate dropout thresholds ρ_i via local-only training, using accuracy.
+
+    ρ_i = accuracy of a model trained only on client i's data,
+    evaluated on its held-out validation set.
+    """
+    rho = []
+    for i in range(n_workers):
+        # Fresh solo model
+        solo_model = model_fn().to(device)
+        solo_model.train()
+        loader_iter = iter(train_loaders[i])
+
+        # Solo training
+        for _ in range(solo_rounds * tau):
+            try:
+                data, target = next(loader_iter)
+            except StopIteration:
+                loader_iter = iter(train_loaders[i])
+                data, target = next(loader_iter)
+
+            data, target = data.to(device), target.to(device)
+            output = solo_model(data)
+            loss = criterion(output, target)
+            solo_model.zero_grad()
+            loss.backward()
+            with torch.no_grad():
+                for p in solo_model.parameters():
+                    p.data -= solo_lr * p.grad
+
+        # Evaluate accuracy on held-out validation data to get ρ_i
+        solo_model.eval()
+        correct, total = 0, 0
+        with torch.no_grad():
+            for data, target in val_loaders[i]:
+                data, target = data.to(device), target.to(device)
+                output = solo_model(data)              # shape [B, C]
+                preds = output.argmax(dim=1)          # predicted class
+                correct += (preds == target).sum().item()
+                total += target.size(0)
+
+        acc = correct / max(total, 1)                 # in [0, 1]
+        rho.append(acc)
+        del solo_model
+
+    return rho
+
+def estimate_rho_local_training_loss(models: List[nn.Module],
                                 model_fn, 
                                 train_loaders: List[DataLoader],
                                 val_loaders: List[DataLoader],
                                 criterion: nn.Module,
                                 n_workers: int,
-                                solo_rounds: int = 5,
-                                tau: int = 4,
-                                solo_lr: float = 0.01,
+                                solo_rounds: int,
+                                tau: int,
+                                solo_lr: float,
                                 device: str = "cpu") -> List[float]:
     """
     Estimate dropout thresholds ρ_i via local-only training.

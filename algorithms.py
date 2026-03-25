@@ -38,7 +38,7 @@ class DecentralizedSGD:
         model_fn: Callable[[], nn.Module],
         n_workers: int,
         mixing_matrix: torch.Tensor,
-        tau: int = 1,
+        tau: int,
         device: str = "cpu",
     ):
         self.n_workers = n_workers
@@ -60,6 +60,7 @@ class DecentralizedSGD:
 
     def train_round(
         self,
+        bs,
         loaders: List[DataLoader],
         lr: float,
         criterion: nn.Module,
@@ -173,7 +174,7 @@ class NodeDropIDSGD:
         gamma: float = 0.5,
         epsilon: float = 1.0,
         tau: int = 1,
-        tau_eta: int = 10,
+        tau_eta: int = 5,
         device: str = "cpu",
     ):
         """
@@ -271,11 +272,13 @@ class NodeDropIDSGD:
 
     #     self.rho_initialized = True
 
-    def _compute_dropout_prob(self, client_idx: int, loss_val: float) -> float:
+    def _compute_dropout_prob(self, rho, client_idx: int, loss_val: float) -> float:
         """σ_i(x) = sigmoid(F_i(x) - ρ_i)"""
-        return torch.sigmoid(torch.tensor(loss_val - self.rho[client_idx].item())).item()
+        rho_i = rho[client_idx]
+        x = float(loss_val) - rho_i
+        return torch.sigmoid(torch.tensor([x])).item()  # or use math.exp if you want pure Python
 
-    def _compute_prefactors(self, client_losses: List[float]) -> torch.Tensor:
+    def _compute_prefactors(self,rho, client_losses: List[float]) -> torch.Tensor:
         """
         Compute pre-factors b_i for all clients.
         b_i = (1 - γ) + γ * a_i * σ_i * (1 - σ_i)
@@ -286,7 +289,7 @@ class NodeDropIDSGD:
         for i in range(self.n_workers):
             if not self.active[i]:
                 continue
-            sigma_i = self._compute_dropout_prob(i, client_losses[i])
+            sigma_i = self._compute_dropout_prob(rho,i, client_losses[i])
             sigma_vals[i] = sigma_i
             q_i = sigma_i * (1 - sigma_i)
             b[i] = (1 - self.gamma) + self.gamma * self.a[i].item() * q_i
@@ -301,19 +304,14 @@ class NodeDropIDSGD:
         Update: s^{r+1} = s^r @ W
         Final: s_i = max(s_i^{τ_η}, b_i)
         """
-        # Initialize: each node starts with N * b_i
-        s = self.n_workers * b.clone()  # (N,)
-
-        # Gossip averaging for scaling factors (scalar gossip)
+        N = self.n_workers
+        s_r = N * b.clone()          # s^(0) = N * b
         for _ in range(self.tau_eta):
-            s = self.W.T @ s  # s = W^T @ s (since W symmetric, same as W @ s)
-
-        # Ensure non-degenerate: s_i >= b_i
-        s = torch.max(s, b)
-
+            s_r = s_r @ self.W       # row-vector convention, same as gossip_average
+        s = torch.maximum(s_r, b)    # ensure s_i >= b_i
         return s
 
-    def _get_client_losses(self, loaders: List[DataLoader],
+    def _get_client_losses(self, bs,loaders: List[DataLoader],
                            criterion: nn.Module) -> List[float]:
         """Compute current empirical loss for each active client."""
         losses = [0.0] * self.n_workers
@@ -329,13 +327,18 @@ class NodeDropIDSGD:
                     total_loss += criterion(output, target).item() * data.size(0)
                     total_n += data.size(0)
                     # Only use a few batches for efficiency  (not completely sure about this but worth trying)
-                    if total_n >= 256:
-                        break
+                    #if total_n >= 16:
+                    #   break
             losses[i] = total_loss / max(total_n, 1)
         return losses
 
     def train_round(
         self,
+        t,
+        tt,
+        flag,
+        bs,
+        rho,
         loaders: List[DataLoader],
         base_lr: float,
         criterion: nn.Module,
@@ -354,15 +357,25 @@ class NodeDropIDSGD:
             loader_iters = [iter(dl) if dl is not None else None for dl in loaders]
 
         # --- Phase 1: Learning rate estimation ---
-        client_losses = self._get_client_losses(loaders, criterion)
-        b, sigma_vals = self._compute_prefactors(client_losses)
-        s = self._estimate_scaling_factors(b)
+        client_losses = self._get_client_losses(bs, loaders, criterion)
+        b, sigma_vals = self._compute_prefactors(rho,client_losses)
 
-        # Effective learning rate: η̂_i = η * b_i / (τ * (s_i + ε))
+
+         # Effective learning rate: η̂_i = η * b_i / (τ * (s_i + ε))
+
+        s = self._estimate_scaling_factors(b)            # s_i ≈ Σ_j b_j
         effective_lrs = torch.zeros(self.n_workers, device=self.device)
         for i in range(self.n_workers):
             if self.active[i]:
-                effective_lrs[i] = base_lr * b[i] / (self.tau * (s[i] + self.epsilon))
+                #print(f"S_i for client {i}: {s[i].item():.4f}, b_i: {b[i].item():.4f}, σ_i: {sigma_vals[i].item():.4f}")
+                #base_lr =  base_lr  # could apply any global scaling here if desired
+                #if args.lr_schedule == "cosine":
+                lr = 1
+                #elif args.lr_schedule == "step":
+                #    lr = args.lr * (0.1 ** (t // (args.T // 3)))
+                #else:
+                #lr = args.lr
+                effective_lrs[i] = (lr * b[i]) / (self.tau * (s[i].item() + self.epsilon))
 
         # Store for logging
         self.dropout_probs.append(sigma_vals.cpu().numpy().copy())
