@@ -54,10 +54,7 @@ def main():
         for key, runs in sorted(groups.items()):
             dataset, topo, algo, lr, bs, tau, gamma, weight_strategy = key
 
-            if dataset == "cifar10":
-                expected_seeds = 3
-            else:
-                expected_seeds = 6
+            expected_seeds = 3
 
             histories = [h for (_, h) in runs]
 

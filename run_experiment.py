@@ -64,18 +64,18 @@ def run_baseline(args, model_fn, train_loaders, test_loaders, test_dataset,
 
     history = {
         "train_loss": [], "global_test_loss": [], "global_test_acc": [],
-        "per_client_acc": [], "consensus": [],
+        "per_client_acc": [], "consensus": [], "avg_preferred_acc": [],
     }
     loader_iters = None
 
     for t in range(args.T):
         # Learning rate schedule
-        if args.lr_schedule == "cosine":
-            lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
-        elif args.lr_schedule == "step":
-            lr = args.lr * (0.1 ** (t // (args.T // 3)))
-        else:
-            lr = args.lr
+        #if args.lr_schedule == "cosine":
+        #    lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
+        #elif args.lr_schedule == "step":
+        #    lr = args.lr * (0.1 ** (t // (args.T // 3)))
+        #else:
+        lr = args.lr
 
         train_loss, loader_iters = dsgd.train_round(args.batch_size,
             train_loaders, lr, criterion, loader_iters
@@ -99,6 +99,8 @@ def run_baseline(args, model_fn, train_loaders, test_loaders, test_dataset,
             history["global_test_acc"].append(global_result["accuracy"])
             history["per_client_acc"].append(client_accs)
             history["consensus"].append(cd)
+
+            history["avg_preferred_acc"] = float(np.mean(client_accs))
 
             if args.verbose:
                 print(f"Round {t+1:>4d}/{args.T} | lr={lr:.5f} | "
@@ -162,23 +164,30 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     current_G = G.copy()
     active = [True] * n_workers
     rho = torch.zeros(n_workers, device=device) #estimated once at Warmup
+    rho_initialized = False
 
 
     for t in range(args.T):
         # Learning rate schedule
-        """if args.lr_schedule == "cosine":
-            lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
-        elif args.lr_schedule == "step":
-            lr = args.lr * (0.1 ** (t // (args.T // 3)))
-        else:"""
+        #if args.lr_schedule == "cosine":
+        #    lr = args.lr * 0.5 * (1 + np.cos(np.pi * t / args.T))
+        #elif args.lr_schedule == "step":
+        #    lr = args.lr * (0.1 ** (t // (args.T // 3)))
+        #else:
         lr = args.lr
 
         # Update mixing matrix in the algorithm
         if algorithm_class == NodeDropIDSGD:
             algo.W = current_W
-            train_loss, loader_iters, round_info = algo.train_round(args.batch_size,rho,
-                train_loaders, lr, criterion, loader_iters
-            )
+            if t < warmup_rounds:  # During warmup, train with base learning rate to learn faster
+                train_loss, loader_iters, round_info = algo.train_round(t,args.T,True,args.batch_size, rho,
+                    train_loaders, lr, criterion, loader_iters
+                )
+            else:
+                train_loss, loader_iters, round_info = algo.train_round(t,args.T,False,args.batch_size, rho,
+                    train_loaders, lr, criterion, loader_iters
+                )
+
         else:
             algo.W = current_W
             train_loss, loader_iters = algo.train_round(args.batch_size,
@@ -189,7 +198,9 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
 
         
         # --- Dropout check after warmup ---
-        if t == warmup_rounds and t > 0 and rho is None:
+        if t == warmup_rounds and t > 0 and rho_initialized == False:
+
+            rho_initialized = True
           
            
             # Estimate ρ_i
@@ -210,7 +221,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
                 print(f"\n>>> Round {t+1}: Estimated ρ_i = "
                       f"{[f'{r:.4f}' for r in rho]}")
         # Check for dropouts periodically after warmup
-        if rho is not None and t>= warmup_rounds and (t-warmup_rounds) % args.dropout_check_interval == 0:
+        if rho_initialized == True  and t>= warmup_rounds and (t-warmup_rounds) % args.dropout_check_interval == 0:
 
             # Compute current losses on validation data (same as rho_i)
             client_losses = compute_client_losses(
@@ -226,10 +237,10 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             dropouts = determine_dropouts(client_losses, rho, active)
 
             #Debug: print client losses, accuracies, and rho values
-            """for i in range(len(client_accuracies)):
-                print(f"\n>>> Round_n {t+1}")
-                print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
-                              f"ρ_n={rho[i]:.4f}")  """
+           # for i in range(len(client_accuracies)):
+            #    print(f"\n>>> Round_n {t+1}")
+             #   print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
+              #                f"ρ_n={rho[i]:.4f}")  
 
             if len(dropouts) > 0:
                 if args.verbose:

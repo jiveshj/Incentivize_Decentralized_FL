@@ -25,17 +25,17 @@ if [[ "$1" == "--quick" ]]; then
     echo ">>> QUICK MODE: T=$T, eval_every=$EVAL_EVERY"
 fi
 
-TOPOLOGIES=("SFL12" "3Con16" "SFL18" "KCN")
-DATASETS=("fashionmnist" "celeba" "cifar10" "emnist")
+TOPOLOGIES=("KCN" "3Con16" "SFL18" "SFL12")
+DATASETS=("fashionmnist" "emnist" "cifar10") #test with celeba and cifar100 if there is time (first cifar100)
+SEEDS_CIFAR=(60 61 62)
+
 DEVICE="cpu"  # Change to "cuda" if GPU available
 
 # Grids matching the paper
-LR_LIST=(0.05 0.03 0.01 0.005 0.003 0.001)
-BS_LIST=(32 64)
-TAU_LIST=(5 10)
-GAMMA_LIST=(0.8333 0.9091 0.9524 0.9804)  # β in {5,10,20,50}
-SEEDS_CIFAR=(1 2 3)
-SEEDS_OTHERS=(1 2 3 4 5 6)
+LR_LIST=(0.05) # test with 0.01 and 0.1 if there is time
+BS_LIST=(64) # test with 32 if there is time
+TAU_LIST=(5) # test with 10 if there is time
+GAMMA_LIST=(0.9524)  # β in {5,10,20} test with 0.8333 0.9091 for 5 and 10 if there is time !!!important
 # Ensure output directory exists
 mkdir -p results
 
@@ -48,16 +48,25 @@ echo "============================================"
 
 for TOPO in "${TOPOLOGIES[@]}"; do
     for DATASET in "${DATASETS[@]}"; do
-    if [[ "$DATASET" == "cifar10" || "$DATASET" == "celeba" ]]; then
       SEEDS=("${SEEDS_CIFAR[@]}")
-    else
-      SEEDS=("${SEEDS_OTHERS[@]}")
-    fi
-
         for SEED in "${SEEDS[@]}"; do
             for LR in "${LR_LIST[@]}"; do
                 for BS in "${BS_LIST[@]}"; do
                     for TAU in "${TAU_LIST[@]}"; do
+                        echo ""
+                        echo ">>> [$TOPO / $DATASET] Running baseline only..."
+                        python run_experiment.py \
+                            --algorithm baseline \
+                            --topology "$TOPO" \
+                            --dataset "$DATASET" \
+                            --lr "$LR" \
+                            --seed "$SEED" \
+                            --batch_size "$BS" \
+                            --tau "$TAU" \
+                            --T "$T" \
+                            --eval_every "$EVAL_EVERY" \
+                            --device "$DEVICE" \
+                            --output_dir results
                         echo ""
                         echo ">>> [$TOPO / $DATASET] Running baseline with dropout..."
                         python run_experiment.py \

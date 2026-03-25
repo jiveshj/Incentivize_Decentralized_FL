@@ -78,8 +78,11 @@ def determine_dropouts(client_losses_or_accuracies: List[float],
     Returns list of client indices that want to drop out.
     """
     dropouts = []
-    for i, (loss, threshold) in enumerate(zip(client_losses_or_accuracies, rho)):
-        if active[i] and loss < threshold:
+    for i in range(len(client_losses_or_accuracies)):
+        #print(f"Client_n {i}: loss_n={client_losses_or_accuracies[i]:.4f},"
+        #                     f"ρ_n={rho[i]:.4f}")  
+        #if active[i] and loss < threshold:
+        if active[i] and client_losses_or_accuracies[i] < rho[i]:
             dropouts.append(i)
     return dropouts
 
