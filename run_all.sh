@@ -113,3 +113,6 @@ echo ""
 echo "============================================"
 echo "All experiments complete! Results in ./results/"
 echo "============================================"
+
+#o que tem os 4 testes é o 30662                     
+#tenho que deixar correr para emnist e cifar10 com kcn   
