@@ -127,7 +127,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     """
     criterion = nn.CrossEntropyLoss()
     global_test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
-    warmup_rounds = int(args.T * args.dropout_warmup_frac)
+    warmup_rounds = int(args.T * args.dropout_warmup_frac * 2)
     
 
     # Initialize algorithm
@@ -179,12 +179,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
         # Update mixing matrix in the algorithm
         if algorithm_class == NodeDropIDSGD:
             algo.W = current_W
-            if t < warmup_rounds:  # During warmup, train with base learning rate to learn faster
-                train_loss, loader_iters, round_info = algo.train_round(t,args.T,True,args.batch_size, rho,
-                    train_loaders, lr, criterion, loader_iters
-                )
-            else:
-                train_loss, loader_iters, round_info = algo.train_round(t,args.T,False,args.batch_size, rho,
+            train_loss, loader_iters, round_info = algo.train_round(args.batch_size, rho,
                     train_loaders, lr, criterion, loader_iters
                 )
 
@@ -215,7 +210,7 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             rho = estimate_rho_local_training_loss(
             algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
             solo_rounds=solo_rounds, tau=args.tau,
-            solo_lr=args.lr, device=device
+            solo_lr=0.005, device=device
 )
             if args.verbose:
                 print(f"\n>>> Round {t+1}: Estimated ρ_i = "
@@ -237,11 +232,11 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             dropouts = determine_dropouts(client_losses, rho, active)
 
             #Debug: print client losses, accuracies, and rho values
-           # for i in range(len(client_accuracies)):
-            #    print(f"\n>>> Round_n {t+1}")
-             #   print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
-              #                f"ρ_n={rho[i]:.4f}")  
-
+            """for i in range(len(client_accuracies)):
+                print(f"\n>>> Round_n {t+1}")
+                print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
+                             f"ρ_n={rho[i]:.4f}")  
+"""
             if len(dropouts) > 0:
                 if args.verbose:
                     print(f"\n>>> Round {t+1}: Clients {dropouts} want to drop out")

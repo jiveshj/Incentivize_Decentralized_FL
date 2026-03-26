@@ -82,7 +82,7 @@ def determine_dropouts(client_losses_or_accuracies: List[float],
         #print(f"Client_n {i}: loss_n={client_losses_or_accuracies[i]:.4f},"
         #                     f"ρ_n={rho[i]:.4f}")  
         #if active[i] and loss < threshold:
-        if active[i] and client_losses_or_accuracies[i] < rho[i]:
+        if active[i] and client_losses_or_accuracies[i] > rho[i]:
             dropouts.append(i)
     return dropouts
 
@@ -233,7 +233,7 @@ def estimate_rho_local_training_accuracy(
     n_workers: int,
     solo_rounds: int = 5,
     tau: int = 4,
-    solo_lr: float = 0.01,
+    solo_lr: float = 0.05,
     device: str = "cpu",
 ) -> List[float]:
     """

@@ -32,7 +32,7 @@ SEEDS_CIFAR=(60 61 62)
 DEVICE="cpu"  # Change to "cuda" if GPU available
 
 # Grids matching the paper
-LR_LIST=(0.05) # test with 0.01 and 0.1 if there is time
+LR_LIST=(0.005) # test with 0.01 and 0.1 if there is time
 BS_LIST=(64) # test with 32 if there is time
 TAU_LIST=(5) # test with 10 if there is time
 GAMMA_LIST=(0.9524)  # β in {5,10,20} test with 0.8333 0.9091 for 5 and 10 if there is time !!!important
