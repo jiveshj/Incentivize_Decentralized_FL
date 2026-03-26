@@ -40,7 +40,7 @@ from algorithms import DecentralizedSGD, NodeDropIDSGD
 from weight_strategies import get_weight_strategy, list_strategies
 from dropout import (estimate_rho_local_training_loss, estimate_rho_local_training_accuracy, determine_dropouts,
                      apply_dropouts, compute_client_losses, compute_client_accuracies,
-                     train_solo_models)
+                     train_solo_models, build_mixed_val_loaders)
 
 
 #We have a learning rate schedule, but have learning rate fixed for local steps in IDSGD (Maybe we should change that?)
@@ -166,6 +166,12 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     rho = torch.zeros(n_workers, device=device) #estimated once at Warmup
     rho_initialized = False
 
+    mixed_val_loaders = build_mixed_val_loaders(
+    val_loaders, n_workers, local_fraction=0.9,
+    seed=args.seed
+    )
+
+
 
     for t in range(args.T):
         # Learning rate schedule
@@ -211,12 +217,21 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
                 solo_lr=lr, device=device
             )"""
             target_steps = 100
-            solo_rounds = max(1, target_steps // args.tau)  # e.g., 20 or 10
+            # solo_rounds = max(1, target_steps // args.tau)  # e.g., 20 or 10
+            solo_rounds = warmup_rounds
+            #estimating scaling factors for making learning rates the same as the algorithm
+            # client_losses_temp = algo._get_client_losses(args.batch_size, train_loaders, criterion)
+            # b, _ = algo._compute_prefactors(rho, client_losses_temp)
+            # s = algo._estimate_scaling_factors(b)
+            # effective_lrs = [b[i].item() / (args.tau * (s[i].item() + args.epsilon)) 
+            #                 for i in range(n_workers)]
+            # mean_effective_lr = np.mean(effective_lrs)
+
             rho = estimate_rho_local_training_loss(
-            algo.models, model_fn, train_loaders, val_loaders, criterion, n_workers,
+            algo.models, model_fn, train_loaders, mixed_val_loaders, criterion, n_workers,
             solo_rounds=solo_rounds, tau=args.tau,
             solo_lr=args.lr, device=device
-)
+            )
             if args.verbose:
                 print(f"\n>>> Round {t+1}: Estimated ρ_i = "
                       f"{[f'{r:.4f}' for r in rho]}")
@@ -225,11 +240,11 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
 
             # Compute current losses on validation data (same as rho_i)
             client_losses = compute_client_losses(
-                algo.models, val_loaders, criterion, active, device
+                algo.models, mixed_val_loaders, criterion, active, device
             )
 
             client_accuracies = compute_client_accuracies(
-                algo.models, val_loaders, active, device
+                algo.models, mixed_val_loaders, active, device
             )
 
             # Determine who wants to drop
@@ -237,10 +252,10 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
             dropouts = determine_dropouts(client_losses, rho, active)
 
             #Debug: print client losses, accuracies, and rho values
-           # for i in range(len(client_accuracies)):
+            # for i in range(len(client_accuracies)):
             #    print(f"\n>>> Round_n {t+1}")
-             #   print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
-              #                f"ρ_n={rho[i]:.4f}")  
+            #    print(f"    Client_n {i}: loss_n={client_losses[i]:.4f}, acc_n={client_accuracies[i]:.4f},"
+            #                  f"ρ_n={rho[i]:.4f}")  
 
             if len(dropouts) > 0:
                 if args.verbose:
@@ -384,7 +399,7 @@ def main():
                         help="Gossip steps for scaling factor estimation")
 
     # Dropout simulation
-    parser.add_argument("--dropout_warmup_frac", type=float, default=0.1,
+    parser.add_argument("--dropout_warmup_frac", type=float, default=0.3,
                         help="Fraction of T before dropout is allowed")
     parser.add_argument("--dropout_check_interval", type=int, default=10,
                         help="Rounds between dropout checks after warmup")
