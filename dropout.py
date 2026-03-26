@@ -42,6 +42,70 @@ def compute_client_losses(models: List[nn.Module],
         losses[i] = total_loss / max(total_n, 1)
     return losses
 
+def build_mixed_val_loaders(
+    val_loaders: List[DataLoader],
+    n_workers: int,
+    local_fraction: float = 0.6,
+    seed: int = 42,
+) -> List[DataLoader]:
+    """
+    Build per-client mixed validation loaders once.
+    60% local, 40% uniform from others.
+    Same seed ensures identical data for both rho estimation and F_i evaluation.
+    """
+    rng = torch.Generator()
+    rng.manual_seed(seed)
+
+    # Pre-collect all val data
+    all_val_data = []
+    for i in range(n_workers):
+        client_data, client_targets = [], []
+        for data, target in val_loaders[i]:
+            client_data.append(data)
+            client_targets.append(target)
+        if len(client_data) > 0:
+            all_val_data.append((
+                torch.cat(client_data, dim=0),
+                torch.cat(client_targets, dim=0)
+            ))
+        else:
+            all_val_data.append(None)
+
+    mixed_loaders = []
+    for i in range(n_workers):
+        if all_val_data[i] is None:
+            mixed_loaders.append(None)
+            continue
+
+        local_data, local_targets = all_val_data[i]
+        n_local = int(len(local_data) * local_fraction)
+        n_uniform = len(local_data) - n_local
+
+        # Local portion
+        mixed_data = [local_data[:n_local]]
+        mixed_targets = [local_targets[:n_local]]
+
+        # Uniform portion from other clients
+        other_clients = [j for j in range(n_workers)
+                        if j != i and all_val_data[j] is not None]
+        if len(other_clients) > 0:
+            n_per_client = max(1, n_uniform // len(other_clients))
+            for j in other_clients:
+                other_data, other_targets = all_val_data[j]
+                n_take = min(n_per_client, len(other_data))
+                idx = torch.randperm(len(other_data), generator=rng)[:n_take]
+                mixed_data.append(other_data[idx])
+                mixed_targets.append(other_targets[idx])
+
+        # Build dataset and loader
+        mixed_data_tensor = torch.cat(mixed_data, dim=0)
+        mixed_targets_tensor = torch.cat(mixed_targets, dim=0)
+        dataset = torch.utils.data.TensorDataset(mixed_data_tensor, mixed_targets_tensor)
+        mixed_loaders.append(DataLoader(dataset, batch_size=64, shuffle=False))
+
+    return mixed_loaders
+
+
     
     """Compute accuracy for each active client for the dropout function."""
 def compute_client_accuracies(
@@ -82,7 +146,7 @@ def determine_dropouts(client_losses_or_accuracies: List[float],
         #print(f"Client_n {i}: loss_n={client_losses_or_accuracies[i]:.4f},"
         #                     f"ρ_n={rho[i]:.4f}")  
         #if active[i] and loss < threshold:
-        if active[i] and client_losses_or_accuracies[i] < rho[i]:
+        if active[i] and client_losses_or_accuracies[i] > rho[i]:
             dropouts.append(i)
     return dropouts
 
