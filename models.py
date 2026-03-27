@@ -11,6 +11,42 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet18
 
+import torch.nn as nn
+import torch.nn.functional as F
+
+class CelebaSmileSmall(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # 64x64 -> 32x32
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.bn1   = nn.BatchNorm2d(16)
+        self.pool1 = nn.MaxPool2d(2)
+
+        # 32x32 -> 16x16
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        self.bn2   = nn.BatchNorm2d(32)
+        self.pool2 = nn.MaxPool2d(2)
+
+        # 16x16 -> 8x8
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn3   = nn.BatchNorm2d(64)
+        self.pool3 = nn.MaxPool2d(2)
+
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        self.dropout = nn.Dropout(0.3)
+        self.fc = nn.Linear(64, 2)  # smiling / not smiling
+
+    def forward(self, x):
+        x = self.pool1(F.relu(self.bn1(self.conv1(x))))
+        x = self.pool2(F.relu(self.bn2(self.conv2(x))))
+        x = self.pool3(F.relu(self.bn3(self.conv3(x))))
+        x = self.gap(x)              # [B, 64, 1, 1]
+        x = x.view(x.size(0), -1)    # [B, 64]
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
+
+
 class CelebaSmileCNN(nn.Module):
     def __init__(self):
         super().__init__()
@@ -201,7 +237,7 @@ def get_model_fn(dataset_name: str, num_classes: int = None):
         return lambda: DeepMLP(input_dim=784, num_classes=nc)
 
     elif dataset_name == "celeba":
-        return lambda: CelebaSmileCNN()
+        return lambda: CelebaSmileSmall()
 
     else:
         raise ValueError(f"No default model for dataset '{dataset_name}'")

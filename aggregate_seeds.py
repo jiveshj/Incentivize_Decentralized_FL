@@ -11,8 +11,8 @@ def load_json(path):
 def main():
     # group by (dataset, topology, algorithm, lr, batch_size, tau, gamma, weight_strategy)
     groups = {}
-
-    for path in glob.glob(os.path.join(RESULTS_DIR, "*.json")):
+    
+    for path in glob.glob(os.path.join(RESULTS_DIR, "**", "*.json"), recursive=True):
         data = load_json(path)
         args = data.get("args")
         history = data.get("history")
@@ -43,7 +43,7 @@ def main():
         "dataset", "topology", "algorithm",
         "lr", "batch_size", "tau",
         "gamma", "weight_strategy",
-        "num_seeds", "expected_seeds",
+        "num_seeds", "expected_seeds", "acc_seed1", "acc_seed2", "acc_seed3",
         "avg_preferred_acc_mean", "avg_preferred_acc_std",
         "final_retention_rate_mean", "final_retention_rate_std",
     ]
@@ -86,6 +86,9 @@ def main():
                 "weight_strategy": weight_strategy if weight_strategy is not None else "",
                 "num_seeds": len(runs),
                 "expected_seeds": expected_seeds,
+                "acc_seed1": avg_pref_list[0],
+                "acc_seed2": avg_pref_list[1] if len(avg_pref_list) > 1 else None,
+                "acc_seed3": avg_pref_list[2] if len(avg_pref_list) > 2 else None,
                 "avg_preferred_acc_mean": mean_pref,
                 "avg_preferred_acc_std": std_pref,
                 "final_retention_rate_mean": mean_ret,

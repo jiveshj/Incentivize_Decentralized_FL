@@ -327,8 +327,8 @@ class NodeDropIDSGD:
                     total_loss += criterion(output, target).item() * data.size(0)
                     total_n += data.size(0)
                     # Only use a few batches for efficiency  (not completely sure about this but worth trying)
-                    #if total_n >= 16:
-                    #   break
+                    if total_n >= 16:
+                       break
             losses[i] = total_loss / max(total_n, 1)
         return losses
 

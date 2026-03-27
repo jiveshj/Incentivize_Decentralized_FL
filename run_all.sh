@@ -32,7 +32,6 @@ fi
 TOPOLOGIES=("$1")
 DATASETS=("$2")
 SEEDS_CIFAR=("$3")
-#miss sfl18 e 3con16, slf12 and kcn for cifar10
 DEVICE="cpu"  # Change to "cuda" if GPU available
 # Grids matching the paper
 BS_LIST=(32) # test with 64 if there is time
@@ -52,13 +51,14 @@ for TOPO in "${TOPOLOGIES[@]}"; do
     for DATASET in "${DATASETS[@]}"; do
       SEEDS=("${SEEDS_CIFAR[@]}")
         for SEED in "${SEEDS[@]}"; do
-            if [ "$DATASET" == "cifar10" ]; then
-                LR=0.5 
+            if [ "$DATASET" == "celeba" || "$DATASET" == "cifar10" ]; then
+                LR=0.5
             else
                 LR=0.005
             fi
             for BS in "${BS_LIST[@]}"; do
                 for TAU in "${TAU_LIST[@]}"; do
+                    echo ""
                     echo ""
                     echo ">>> [$TOPO / $DATASET] Running baseline only..."
                     python3 run_experiment.py \
@@ -74,8 +74,9 @@ for TOPO in "${TOPOLOGIES[@]}"; do
                         --device "$DEVICE" \
                         --output_dir results
                     echo ""
+                    
                     echo ">>> [$TOPO / $DATASET] Running baseline with dropout..."
-                    python run_experiment.py \
+                    python3 run_experiment.py \
                         --algorithm baseline_dropout \
                         --topology "$TOPO" \
                         --dataset "$DATASET" \
@@ -120,5 +121,3 @@ echo "============================================"
 echo "All experiments complete! Results in ./results/"
 echo "============================================"
 
-#o que tem os 4 testes é o 30662                     
-#tenho que deixar correr para emnist e cifar10 com kcn   

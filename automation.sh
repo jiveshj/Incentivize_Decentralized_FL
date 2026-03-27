@@ -8,9 +8,9 @@ screen -dmS SFL18_cifar10_0    bash run_all.sh SFL18 cifar10 0
 screen -dmS SFL18_cifar10_1    bash run_all.sh SFL18 cifar10 1
 screen -dmS SFL18_cifar10_2    bash run_all.sh SFL18 cifar10 2
 
-screen -dmS KCN_cifar10_0      bash run_all.sh KCN cifar10 0
-screen -dmS KCN_cifar10_1      bash run_all.sh KCN cifar10 1
-screen -dmS KCN_cifar10_2      bash run_all.sh KCN cifar10 2
+screen -dmS KCN_cifar10_0      bash run_all.sh KCN cifar10 40
+screen -dmS KCN_cifar10_1      bash run_all.sh KCN cifar10 41
+screen -dmS KCN_cifar10_2      bash run_all.sh KCN cifar10 42
 
 
 screen -dmS SFL12_cifar10_0    bash run_all.sh SFL12 cifar10 0
