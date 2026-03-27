@@ -2,24 +2,41 @@
 
 # This file contains ALL combinations:
 # screen sh run_all.sh TOPOLOGY DATASET SEED
-
 # ---------- CIFAR10 ----------
-screen -dmS SFL18_cifar10_0    bash run_all.sh SFL18 cifar10 0
-screen -dmS SFL18_cifar10_1    bash run_all.sh SFL18 cifar10 1
-screen -dmS SFL18_cifar10_2    bash run_all.sh SFL18 cifar10 2
+#screen -dmS SFL18_cifar10_0    bash run_all.sh SFL18 cifar10 0
+#screen -dmS SFL18_cifar10_1    bash run_all.sh SFL18 cifar10 1
+#screen -dmS SFL18_cifar10_2    bash run_all.sh SFL18 cifar10 2
 
-screen -dmS KCN_cifar10_0      bash run_all.sh KCN cifar10 40
-screen -dmS KCN_cifar10_1      bash run_all.sh KCN cifar10 41
-screen -dmS KCN_cifar10_2      bash run_all.sh KCN cifar10 42
+#screen -dmS KCN_cifar10_0      bash run_all.sh KCN cifar10 40
+#screen -dmS KCN_cifar10_1      bash run_all.sh KCN cifar10 41
+#screen -dmS KCN_cifar10_2      bash run_all.sh KCN cifar10 42
 
 
-screen -dmS SFL12_cifar10_0    bash run_all.sh SFL12 cifar10 0
-screen -dmS SFL12_cifar10_1    bash run_all.sh SFL12 cifar10 1
-screen -dmS SFL12_cifar10_2    bash run_all.sh SFL12 cifar10 2
+#screen -dmS SFL12_cifar10_0    bash run_all.sh SFL12 cifar10 0
+#screen -dmS SFL12_cifar10_1    bash run_all.sh SFL12 cifar10 1
+#screen -dmS SFL12_cifar10_2    bash run_all.sh SFL12 cifar10 2
 
-screen -dmS 3Con16_cifar10_0   bash run_all.sh 3Con16 cifar10 0
-screen -dmS 3Con16_cifar10_1   bash run_all.sh 3Con16 cifar10 1
-screen -dmS 3Con16_cifar10_2   bash run_all.sh 3Con16 cifar10 2
+#screen -dmS 3Con16_cifar10_0   bash run_all.sh 3Con16 cifar10 0
+#screen -dmS 3Con16_cifar10_1   bash run_all.sh 3Con16 cifar10 1
+#screen -dmS 3Con16_cifar10_2   bash run_all.sh 3Con16 cifar10 2
+
+# ---------- CELEBA ----------
+screen -dmS SFL18_celeba_0    bash run_all.sh SFL18 celeba 0
+screen -dmS SFL18_celeba_1    bash run_all.sh SFL18 celeba 1
+screen -dmS SFL18_celeba_2    bash run_all.sh SFL18 celeba 2
+
+screen -dmS KCN_celeba_0      bash run_all.sh KCN celeba 0
+screen -dmS KCN_celeba_1      bash run_all.sh KCN celeba 1
+screen -dmS KCN_celeba_2      bash run_all.sh KCN celeba 2
+
+
+screen -dmS SFL12_celeba_0    bash run_all.sh SFL12 celeba 0
+screen -dmS SFL12_celeba_1    bash run_all.sh SFL12 celeba 1
+screen -dmS SFL12_celeba_2    bash run_all.sh SFL12 celeba 2
+
+screen -dmS 3Con16_celeba_0   bash run_all.sh 3Con16 celeba 0
+screen -dmS 3Con16_celeba_1   bash run_all.sh 3Con16 celeba 1
+screen -dmS 3Con16_celeba_2   bash run_all.sh 3Con16 celeba 2
 
 # ---------- EMNIST 121 ----------
 
