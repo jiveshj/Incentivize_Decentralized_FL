@@ -436,7 +436,7 @@ def get_alpha_for_dataset(dataset_name: str) -> float:
         "fashionmnist": 0.1,
         "cifar10": 0.1,
         "cifar100": 0.1,  
-        "emnist": 0.05,
+        "emnist": 0.1,
         "mnist": 0.1,
         "celeba": 0.1,
     }

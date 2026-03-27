@@ -25,15 +25,17 @@ if [[ "$1" == "--quick" ]]; then
     echo ">>> QUICK MODE: T=$T, eval_every=$EVAL_EVERY"
 fi
 
-TOPOLOGIES=("KCN" "3Con16" "SFL18" "SFL12")
-DATASETS=("fashionmnist" "emnist" "cifar10") #test with celeba and cifar100 if there is time (first cifar100)
-SEEDS_CIFAR=(60 61 62)
+#TOPOLOGIES=(SFL18" "KCN" "SFL12" "3Con16")
+#DATASETS=( "cifar10" "emnist" "fashionmnist") #test with celeba and cifar100 if there is time (first cifar100)
+#SEEDS_CIFAR=(39 111 252)
 
+TOPOLOGIES=("$1")
+DATASETS=("$2")
+SEEDS_CIFAR=("$3")
+#miss sfl18 e 3con16, slf12 and kcn for cifar10
 DEVICE="cpu"  # Change to "cuda" if GPU available
-
 # Grids matching the paper
-LR_LIST=(0.05) # test with 0.01 and 0.1 if there is time
-BS_LIST=(64) # test with 32 if there is time
+BS_LIST=(32) # test with 64 if there is time
 TAU_LIST=(5) # test with 10 if there is time
 GAMMA_LIST=(0.9524)  # β in {5,10,20} test with 0.8333 0.9091 for 5 and 10 if there is time !!!important
 # Ensure output directory exists
@@ -50,58 +52,62 @@ for TOPO in "${TOPOLOGIES[@]}"; do
     for DATASET in "${DATASETS[@]}"; do
       SEEDS=("${SEEDS_CIFAR[@]}")
         for SEED in "${SEEDS[@]}"; do
-            for LR in "${LR_LIST[@]}"; do
-                for BS in "${BS_LIST[@]}"; do
-                    for TAU in "${TAU_LIST[@]}"; do
-                        echo ""
-                        echo ">>> [$TOPO / $DATASET] Running baseline only..."
-                        python run_experiment.py \
-                            --algorithm baseline \
-                            --topology "$TOPO" \
-                            --dataset "$DATASET" \
-                            --lr "$LR" \
-                            --seed "$SEED" \
-                            --batch_size "$BS" \
-                            --tau "$TAU" \
-                            --T "$T" \
-                            --eval_every "$EVAL_EVERY" \
-                            --device "$DEVICE" \
-                            --output_dir results
-                        echo ""
-                        echo ">>> [$TOPO / $DATASET] Running baseline with dropout..."
-                        python run_experiment.py \
-                            --algorithm baseline_dropout \
-                            --topology "$TOPO" \
-                            --dataset "$DATASET" \
-                            --lr "$LR" \
-                            --seed "$SEED" \
-                            --batch_size "$BS" \
-                            --tau "$TAU" \
-                            --T "$T" \
-                            --eval_every "$EVAL_EVERY" \
-                            --device "$DEVICE" \
-                            --output_dir results
+            if [ "$DATASET" == "cifar10" ]; then
+                LR=0.5 
+            else
+                LR=0.005
+            fi
+            for BS in "${BS_LIST[@]}"; do
+                for TAU in "${TAU_LIST[@]}"; do
+                    echo ""
+                    echo ">>> [$TOPO / $DATASET] Running baseline only..."
+                    python3 run_experiment.py \
+                        --algorithm baseline \
+                        --topology "$TOPO" \
+                        --dataset "$DATASET" \
+                        --lr "$LR" \
+                        --seed "$SEED" \
+                        --batch_size "$BS" \
+                        --tau "$TAU" \
+                        --T "$T" \
+                        --eval_every "$EVAL_EVERY" \
+                        --device "$DEVICE" \
+                        --output_dir results
+                    echo ""
+                    echo ">>> [$TOPO / $DATASET] Running baseline with dropout..."
+                    python run_experiment.py \
+                        --algorithm baseline_dropout \
+                        --topology "$TOPO" \
+                        --dataset "$DATASET" \
+                        --lr "$LR" \
+                        --seed "$SEED" \
+                        --batch_size "$BS" \
+                        --tau "$TAU" \
+                        --T "$T" \
+                        --eval_every "$EVAL_EVERY" \
+                        --device "$DEVICE" \
+                        --output_dir results
 
-                        echo ""
-                        echo ">>> [$TOPO / $DATASET] Running NodeDrop-IDSGD with ALL weight strategies..."
+
+                    echo ""
+                    echo ">>> [$TOPO / $DATASET] Running NodeDrop-IDSGD with ALL weight strategies..."
             
-                        for GAMMA in "${GAMMA_LIST[@]}"; do
-                            python run_experiment.py \
-                            --algorithm nodedrop \
-                            --weight_strategy ALL \
-                            --topology "$TOPO" \
-                            --dataset "$DATASET" \
-                            --T "$T" \
-                            --eval_every "$EVAL_EVERY" \
-                            --lr "$LR" \
-                            --seed "$SEED" \
-                            --batch_size "$BS" \
-                            --tau "$TAU" \
-                            --gamma "$GAMMA" \
-                            --tau_eta 5 \
-                            --device "$DEVICE" \
-                            --output_dir results
-                        done
+                    for GAMMA in "${GAMMA_LIST[@]}"; do
+                        python3 run_experiment.py \
+                        --algorithm nodedrop \
+                        --weight_strategy ALL \
+                        --topology "$TOPO" \
+                        --dataset "$DATASET" \
+                        --T "$T" \
+                        --eval_every "$EVAL_EVERY" \
+                        --lr "$LR" \
+                        --seed "$SEED" \
+                        --batch_size "$BS" \
+                        --tau "$TAU" \
+                        --gamma "$GAMMA" \
+                        --tau_eta 5 \
+                        --device "$DEVICE" \
+                        --output_dir results
                     done
                 done
             done

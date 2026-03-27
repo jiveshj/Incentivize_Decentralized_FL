@@ -166,10 +166,12 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
     rho = torch.zeros(n_workers, device=device) #estimated once at Warmup
     rho_initialized = False
 
-    mixed_val_loaders = build_mixed_val_loaders(
+    """mixed_val_loaders = build_mixed_val_loaders(
     val_loaders, n_workers, local_fraction=0.9,
     seed=args.seed
-    )
+    )"""
+
+    mixed_val_loaders = val_loaders
 
 
 
@@ -182,29 +184,11 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
         #else:
         lr = args.lr
 
-        # Update mixing matrix in the algorithm
-        if algorithm_class == NodeDropIDSGD:
-            algo.W = current_W
-            if t < warmup_rounds:  # During warmup, train with base learning rate to learn faster
-                train_loss, loader_iters, round_info = algo.train_round(t,args.T,True,args.batch_size, rho,
-                    train_loaders, lr, criterion, loader_iters
-                )
-            else:
-                train_loss, loader_iters, round_info = algo.train_round(t,args.T,False,args.batch_size, rho,
-                    train_loaders, lr, criterion, loader_iters
-                )
-
-        else:
-            algo.W = current_W
-            train_loss, loader_iters = algo.train_round(args.batch_size,
-                train_loaders, lr, criterion, loader_iters
-            )
-
-        history["train_loss"].append(train_loss)
+        
 
         
         # --- Dropout check after warmup ---
-        if t == warmup_rounds and t > 0 and rho_initialized == False:
+        if t == 0 and rho_initialized == False:
 
             rho_initialized = True
           
@@ -217,8 +201,8 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
                 solo_lr=lr, device=device
             )"""
             target_steps = 100
-            # solo_rounds = max(1, target_steps // args.tau)  # e.g., 20 or 10
-            solo_rounds = warmup_rounds
+            solo_rounds = max(1, target_steps // args.tau)  # e.g., 20 or 10
+            #solo_rounds = warmup_rounds
             #estimating scaling factors for making learning rates the same as the algorithm
             # client_losses_temp = algo._get_client_losses(args.batch_size, train_loaders, criterion)
             # b, _ = algo._compute_prefactors(rho, client_losses_temp)
@@ -236,7 +220,23 @@ def run_with_dropout(args, model_fn, train_loaders, val_loaders,test_loaders, te
                 print(f"\n>>> Round {t+1}: Estimated ρ_i = "
                       f"{[f'{r:.4f}' for r in rho]}")
         # Check for dropouts periodically after warmup
-        if rho_initialized == True  and t>= warmup_rounds and (t-warmup_rounds) % args.dropout_check_interval == 0:
+
+        # Update mixing matrix in the algorithm
+        if algorithm_class == NodeDropIDSGD:
+            algo.W = current_W
+            train_loss, loader_iters, round_info = algo.train_round(args.batch_size, rho,
+                    train_loaders, lr, criterion, loader_iters
+                )
+
+        else:
+            algo.W = current_W
+            train_loss, loader_iters = algo.train_round(args.batch_size,
+                train_loaders, lr, criterion, loader_iters
+            )
+
+        history["train_loss"].append(train_loss)
+
+        if rho_initialized == True  and t>= (args.dropout_warmup_frac * args.T) and t % args.dropout_check_interval == 0:
 
             # Compute current losses on validation data (same as rho_i)
             client_losses = compute_client_losses(
@@ -394,7 +394,7 @@ def main():
     parser.add_argument("--gamma", type=float, default=0.5,
                         help="Interpolation between ERM and dropout penalty")
     parser.add_argument("--epsilon", type=float, default=1.0,
-                        help="Smoothing in LR denominator")
+                        help="Smoothing in LR denominator"),
     parser.add_argument("--tau_eta", type=int, default=5,
                         help="Gossip steps for scaling factor estimation")
 
@@ -405,7 +405,7 @@ def main():
                         help="Rounds between dropout checks after warmup")
     parser.add_argument("--rho_solo_rounds", type=int, default=5,
                         help="Solo training rounds to estimate rho_i")
-    parser.add_argument("--val_fraction", type= float, default = 0.15,
+    parser.add_argument("--val_fraction", type= float, default = 0.2,
                         help="Fraction of each client's data to use as validation for dropout decisions")
     parser.add_argument("--solo_train_rounds", type=int, default=1,
                         help="Solo training flag for dropped clients (0=disable)")

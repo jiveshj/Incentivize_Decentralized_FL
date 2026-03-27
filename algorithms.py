@@ -334,9 +334,6 @@ class NodeDropIDSGD:
 
     def train_round(
         self,
-        t,
-        tt,
-        flag,
         bs,
         rho,
         loaders: List[DataLoader],
@@ -368,13 +365,7 @@ class NodeDropIDSGD:
         for i in range(self.n_workers):
             if self.active[i]:
                 #print(f"S_i for client {i}: {s[i].item():.4f}, b_i: {b[i].item():.4f}, σ_i: {sigma_vals[i].item():.4f}")
-                #base_lr =  base_lr  # could apply any global scaling here if desired
-                #if args.lr_schedule == "cosine":
-                lr = 1
-                #elif args.lr_schedule == "step":
-                #    lr = args.lr * (0.1 ** (t // (args.T // 3)))
-                #else:
-                #lr = args.lr
+                lr=4
                 effective_lrs[i] = (lr * b[i]) / (self.tau * (s[i].item() + self.epsilon))
 
         # Store for logging

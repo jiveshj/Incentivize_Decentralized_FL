@@ -49,7 +49,25 @@ class CelebaSmileCNN(nn.Module):
         x = self.dropout(x)
         x = self.fc(x)
         return x
+        
+class CifarCNNSmall(nn.Module):
+    def __init__(self, num_classes=10):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
+        self.bn1   = nn.BatchNorm2d(32)
+        self.pool1 = nn.MaxPool2d(2)
 
+        self.dropout = nn.Dropout(0.5)
+        # Directly to logits: 32 * 16 * 16 -> num_classes
+        self.fc = nn.Linear(32 * 16 * 16, num_classes)
+
+    def forward(self, x):
+        x = self.pool1(F.relu(self.bn1(self.conv1(x))))
+        x = x.view(x.size(0), -1)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
+        
 class CifarCNN(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
