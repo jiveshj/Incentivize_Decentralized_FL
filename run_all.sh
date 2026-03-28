@@ -15,7 +15,7 @@
 set -e
 
 QUICK=false
-T=300
+T=120
 EVAL_EVERY=10
 
 if [[ "$1" == "--quick" ]]; then
@@ -54,18 +54,24 @@ for TOPO in "${TOPOLOGIES[@]}"; do
     for DATASET in "${DATASETS[@]}"; do
       SEEDS=("${SEEDS_CIFAR[@]}")
         for SEED in "${SEEDS[@]}"; do
-            #if [ "$DATASET" == "celeba" || "$DATASET" == "cifar10" ]; then
-            #celeba
-            LR=0.5
-            #else
-            #    LR=0.005
-            #fi
+            LR=0.0005
             for BS in "${BS_LIST[@]}"; do
                 for TAU in "${TAU_LIST[@]}"; do
                     echo ""
-                    echo ""
                     echo ">>> [$TOPO / $DATASET] Running baseline only..."
-                   
+                    python3 run_experiment.py \
+                        --algorithm baseline \
+                        --topology "$TOPO" \
+                        --dataset "$DATASET" \
+                        --lr "$LR" \
+                        --seed "$SEED" \
+                        --batch_size "$BS" \
+                        --tau "$TAU" \
+                        --T "$T" \
+                        --eval_every "$EVAL_EVERY" \
+                        --device "$DEVICE" \
+                        --output_dir results
+                    echo "" 
                     
                     echo ">>> [$TOPO / $DATASET] Running baseline with dropout..."
                     python3 run_experiment.py \

@@ -20,21 +20,21 @@
 #screen -dmS 3Con16_cifar100_2 bash run_all.sh 3Con16 cifar100 2
 
 # ---------- CELEBA ----------
-screen -dmS SFL18_celeba_0    bash run_all.sh SFL18 celeba 0
-screen -dmS SFL18_celeba_1    bash run_all.sh SFL18 celeba 1
-screen -dmS SFL18_celeba_2    bash run_all.sh SFL18 celeba 2
+screen -dmS SFL12_celeba_0 bash run_all.sh SFL12 celeba 0
+screen -dmS SFL12_celeba_1 bash run_all.sh SFL12 celeba 1
+screen -dmS SFL12_celeba_2 bash run_all.sh SFL12 celeba 2
 
-screen -dmS KCN_celeba_30      bash run_all.sh KCN celeba 30
-screen -dmS KCN_celeba_31      bash run_all.sh KCN celeba 31
-screen -dmS KCN_celeba_32      bash run_all.sh KCN celeba 32
+screen -dmS SFL18_celeba_20 bash run_all.sh SFL18 celeba 20
+screen -dmS SFL18_celeba_21 bash run_all.sh SFL18 celeba 21
+screen -dmS SFL18_celeba_22 bash run_all.sh SFL18 celeba 22
 
-screen -dmS SFL12_celeba_0    bash run_all.sh SFL12 celeba 0
-screen -dmS SFL12_celeba_1    bash run_all.sh SFL12 celeba 1
-screen -dmS SFL12_celeba_2    bash run_all.sh SFL12 celeba 2
+screen -dmS KCN_celeba_30 bash run_all.sh KCN celeba 30
+screen -dmS KCN_celeba_31 bash run_all.sh KCN celeba 31
+screen -dmS KCN_celeba_32 bash run_all.sh KCN celeba 32
 
-screen -dmS 3Con16_celeba_0   bash run_all.sh 3Con16 celeba 0
-screen -dmS 3Con16_celeba_1   bash run_all.sh 3Con16 celeba 1
-screen -dmS 3Con16_celeba_2   bash run_all.sh 3Con16 celeba 2
+screen -dmS 3Con16_celeba_0 bash run_all.sh 3Con16 celeba 0
+screen -dmS 3Con16_celeba_1 bash run_all.sh 3Con16 celeba 1
+screen -dmS 3Con16_celeba_2 bash run_all.sh 3Con16 celeba 2
 
 # ---------- EMNIST 121 ----------
 
