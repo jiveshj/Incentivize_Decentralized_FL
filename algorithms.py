@@ -365,7 +365,7 @@ class NodeDropIDSGD:
         for i in range(self.n_workers):
             if self.active[i]:
                 #print(f"S_i for client {i}: {s[i].item():.4f}, b_i: {b[i].item():.4f}, σ_i: {sigma_vals[i].item():.4f}")
-                lr=4
+                lr=1       
                 effective_lrs[i] = (lr * b[i]) / (self.tau * (s[i].item() + self.epsilon))
 
         # Store for logging

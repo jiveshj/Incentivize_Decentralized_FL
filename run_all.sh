@@ -15,7 +15,7 @@
 set -e
 
 QUICK=false
-T=200
+T=300
 EVAL_EVERY=10
 
 if [[ "$1" == "--quick" ]]; then
@@ -46,7 +46,10 @@ echo "Topologies: ${TOPOLOGIES[*]}"
 echo "Datasets:   ${DATASETS[*]}"
 echo "T=$T, Device=$DEVICE"
 echo "============================================"
-
+#changing in femnist and emnist: lr=0.005 alg=1 and r=300 knc 32 fashionmnist and emnist
+#121 - emnist
+#149 - fashionmnist
+#145 - cifar10
 for TOPO in "${TOPOLOGIES[@]}"; do
     for DATASET in "${DATASETS[@]}"; do
       SEEDS=("${SEEDS_CIFAR[@]}")
@@ -62,19 +65,7 @@ for TOPO in "${TOPOLOGIES[@]}"; do
                     echo ""
                     echo ""
                     echo ">>> [$TOPO / $DATASET] Running baseline only..."
-                    python3 run_experiment.py \
-                        --algorithm baseline \
-                        --topology "$TOPO" \
-                        --dataset "$DATASET" \
-                        --lr "$LR" \
-                        --seed "$SEED" \
-                        --batch_size "$BS" \
-                        --tau "$TAU" \
-                        --T "$T" \
-                        --eval_every "$EVAL_EVERY" \
-                        --device "$DEVICE" \
-                        --output_dir results
-                    echo ""
+                   
                     
                     echo ">>> [$TOPO / $DATASET] Running baseline with dropout..."
                     python3 run_experiment.py \
