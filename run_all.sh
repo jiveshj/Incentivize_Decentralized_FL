@@ -51,11 +51,12 @@ for TOPO in "${TOPOLOGIES[@]}"; do
     for DATASET in "${DATASETS[@]}"; do
       SEEDS=("${SEEDS_CIFAR[@]}")
         for SEED in "${SEEDS[@]}"; do
-            if [ "$DATASET" == "celeba" || "$DATASET" == "cifar10" ]; then
-                LR=0.5
-            else
-                LR=0.005
-            fi
+            #if [ "$DATASET" == "celeba" || "$DATASET" == "cifar10" ]; then
+            #celeba
+            LR=0.5
+            #else
+            #    LR=0.005
+            #fi
             for BS in "${BS_LIST[@]}"; do
                 for TAU in "${TAU_LIST[@]}"; do
                     echo ""
