@@ -1,7 +1,7 @@
 import os, json, glob, csv
 import numpy as np
 
-RESULTS_DIR = "results"
+RESULTS_DIR = "final_results"
 OUT_CSV = os.path.join(RESULTS_DIR, "summary.csv")
 
 def load_json(path):
@@ -43,7 +43,7 @@ def main():
         "dataset", "topology", "algorithm",
         "lr", "batch_size", "tau",
         "gamma", "weight_strategy",
-        "num_seeds", "expected_seeds", "acc_seed1", "acc_seed2", "acc_seed3",
+        "num_seeds", "expected_seeds", 
         "avg_preferred_acc_mean", "avg_preferred_acc_std",
         "final_retention_rate_mean", "final_retention_rate_std",
     ]
@@ -54,7 +54,7 @@ def main():
         for key, runs in sorted(groups.items()):
             dataset, topo, algo, lr, bs, tau, gamma, weight_strategy = key
 
-            expected_seeds = 3
+            expected_seeds = 10
 
             histories = [h for (_, h) in runs]
 
@@ -86,9 +86,6 @@ def main():
                 "weight_strategy": weight_strategy if weight_strategy is not None else "",
                 "num_seeds": len(runs),
                 "expected_seeds": expected_seeds,
-                "acc_seed1": avg_pref_list[0],
-                "acc_seed2": avg_pref_list[1] if len(avg_pref_list) > 1 else None,
-                "acc_seed3": avg_pref_list[2] if len(avg_pref_list) > 2 else None,
                 "avg_preferred_acc_mean": mean_pref,
                 "avg_preferred_acc_std": std_pref,
                 "final_retention_rate_mean": mean_ret,
